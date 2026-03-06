@@ -1,0 +1,327 @@
+// Prisma schema for AI Agent SaaS
+// Supports multi-tenant architecture with user isolation
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication and multi-tenancy
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  password      String    // Hashed password (bcrypt)
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  agents        Agent[]
+  sessions      Session[]
+  accounts      Account[]
+
+  @@map("users")
+}
+
+// NextAuth Account model for OAuth providers (optional)
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// NextAuth Session model
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// NextAuth VerificationToken model
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// AI Agent model - each user can have multiple agents
+model Agent {
+  id          String    @id @default(uuid())
+  name        String
+  systemPrompt String   @db.Text // System prompt for the agent
+  language    String    @default("en") // Language code: en, hi, ur, etc.
+  userId      String    // Owner of the agent (multi-tenant isolation)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents   Document[]
+  chatMessages ChatMessage[]
+  crawlJobs   CrawlJob[]
+  analytics   Analytics[]
+  leads       Lead[]
+  settings    AgentSettings?
+  visitors    Visitor[]
+  chatSessions ChatSession[]
+  consultationReports ConsultationReport[]
+
+  @@index([userId]) // Index for fast user queries
+  @@map("agents")
+}
+
+// Document model - knowledge base documents for each agent
+model Document {
+  id          String    @id @default(uuid())
+  agentId     String
+  filename    String
+  filepath    String    // Path to uploaded file on filesystem
+  fileSize    Int       // Size in bytes
+  mimeType    String
+  extractedText String? @db.Text // Extracted text content
+  status      String    @default("pending") // pending, processing, completed, failed
+  chunksCount Int       @default(0) // Number of text chunks created
+  embeddingsCount Int   @default(0) // Number of embeddings stored
+  errorMessage String?  @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  agent       Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  chunks      DocumentChunk[]
+
+  @@index([agentId]) // Index for fast agent queries
+  @@index([status]) // Index for processing queue
+  @@map("documents")
+}
+
+// Document chunks - text chunks from documents for RAG
+model DocumentChunk {
+  id          String    @id @default(uuid())
+  documentId  String
+  chunkIndex  Int       // Order of chunk in document
+  text        String    @db.Text // Chunk text content
+  startIndex  Int       // Character index where chunk starts in original text
+  endIndex    Int       // Character index where chunk ends
+  embedding   Json?     // Embedding vector stored as JSON array (for pgvector, we'll use raw SQL)
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  document    Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("document_chunks")
+}
+
+// Visitor - tracks unique visitors for embedded chats
+model Visitor {
+  id          String    @id @default(uuid()) // visitorId from localStorage
+  agentId     String
+  name        String?
+  age         Int?
+  origin      String?
+  phone       String?
+  phoneSkipped Boolean  @default(false)
+  email       String?
+  emailVerifiedAt DateTime?
+  profileCompletedAt DateTime?
+  emailOtpHash String?  @db.Text
+  emailOtpExpiresAt DateTime?
+  emailOtpAttempts Int   @default(0)
+  firstSeen   DateTime  @default(now())
+  lastSeen    DateTime  @default(now())
+  ip          String?
+  userAgent   String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  agent       Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  sessions    ChatSession[]
+  messages    ChatMessage[]
+  leads       Lead[]
+  reports     ConsultationReport[]
+
+  @@index([agentId])
+  @@index([lastSeen])
+  @@index([email])
+  @@map("visitors")
+}
+
+// Chat Session - tracks individual chat sessions
+model ChatSession {
+  id          String    @id @default(uuid()) // sessionId
+  visitorId   String
+  agentId     String
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  visitor     Visitor   @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  agent       Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  messages    ChatMessage[]
+  reports     ConsultationReport[]
+
+  @@index([visitorId])
+  @@index([agentId])
+  @@index([startedAt])
+  @@map("chat_sessions")
+}
+
+// Consultation Reports - structured summaries for sessions
+model ConsultationReport {
+  id          String    @id @default(uuid())
+  agentId     String
+  visitorId   String?
+  sessionId   String?
+  content     Json      // Structured report content
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  agent       Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  visitor     Visitor?  @relation(fields: [visitorId], references: [id], onDelete: SetNull)
+  session     ChatSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([agentId])
+  @@index([visitorId])
+  @@index([sessionId])
+  @@map("consultation_reports")
+}
+
+// Chat messages - conversation history for each agent
+model ChatMessage {
+  id          String    @id @default(uuid())
+  agentId     String
+  sessionId   String?   // Link to chat session (for embedded chats)
+  visitorId   String?   // Link to visitor (for embedded chats)
+  role        String    // "user" or "assistant"
+  content     String    @db.Text
+  metadata    Json?     // Additional metadata (e.g., used chunks, tokens, etc.)
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  agent       Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  session     ChatSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  visitor     Visitor?    @relation(fields: [visitorId], references: [id], onDelete: SetNull)
+
+  @@index([agentId, createdAt]) // Index for conversation history queries
+  @@index([sessionId])
+  @@index([visitorId])
+  @@map("chat_messages")
+}
+
+// Crawl Job - tracks website crawling jobs
+model CrawlJob {
+  id          String    @id @default(uuid())
+  agentId     String
+  url         String    // Starting URL
+  status      String    @default("pending") // pending, crawling, completed, failed
+  pagesCrawled Int     @default(0)
+  pagesTotal  Int      @default(0)
+  chunksCreated Int    @default(0)
+  errorMessage String? @db.Text
+  metadata    Json?     // Additional metadata (depth, maxDepth, etc.)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  agent       Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([status])
+  @@map("crawl_jobs")
+}
+
+// Analytics - tracks usage and performance per agent
+model Analytics {
+  id              String    @id @default(uuid())
+  agentId         String    @unique // One analytics record per agent
+  conversations   Int       @default(0) // Total conversations
+  messages        Int       @default(0) // Total messages
+  uniqueUsers     Int       @default(0) // Unique users count
+  dailyStats      Json?     // Daily activity stats { date: { conversations, messages, users } }
+  avgResponseTime Float?    // Average response time in ms
+  fallbackCount   Int       @default(0) // Unanswered/fallback count
+  leadsCaptured   Int       @default(0) // Leads captured
+  lastUpdated     DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+
+  // Relations
+  agent           Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@map("analytics")
+}
+
+// Lead - CRM leads captured from conversations
+model Lead {
+  id              String    @id @default(uuid())
+  agentId         String
+  visitorId       String?   // Link to visitor (for embedded chats)
+  name            String?
+  email           String?
+  phone           String?
+  conversationHistory Json? // Full conversation history (stored as JSONB in PostgreSQL)
+  tags            String[]  @default([]) // Tags for categorization
+  status          String    @default("new") // new, contacted, closed
+  notes           String?   @db.Text
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  agent           Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  visitor         Visitor?  @relation(fields: [visitorId], references: [id], onDelete: SetNull)
+
+  @@index([agentId])
+  @@index([status])
+  @@index([email])
+  @@index([visitorId])
+  @@map("leads")
+}
+
+// Agent Settings - configuration for agent behavior
+model AgentSettings {
+  id            String    @id @default(uuid())
+  agentId       String    @unique
+  systemPrompt  String?   @db.Text // Override system prompt
+  temperature   Float?    @default(0.7) // Temperature for responses
+  model         String?   @default("gpt-4") // Model to use
+  maxTokens     Int?      @default(1000) // Max tokens per response
+  config        Json?     // Additional configuration
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  agent         Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@map("agent_settings")
+}
