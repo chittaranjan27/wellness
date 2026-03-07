@@ -90,6 +90,64 @@ export default function AgentChat({
   );
   const [currentCategory, setCurrentCategory] = useState<string | null>(null);
   const otherModeRef = useRef(false);
+  // Track which variant is selected for each product group (baseKey -> selected product id)
+  const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
+  // Mobile tab toggle: 'chat' or 'picks' — only affects mobile layout
+  const [mobileTab, setMobileTab] = useState<'chat' | 'picks'>('chat');
+
+  /**
+   * Group products by base name so duration/combo variants appear together.
+   * E.g. "Vitality Boost 15-day" and "Vitality Boost 30-day" share baseKey "vitality boost".
+   * Returns an array of groups, each with a baseKey and variant products.
+   */
+  const VARIANT_RE = /\b(\d+)\s*[-–]?\s*(day|days|month|months|week|weeks|capsule|capsules|tablet|tablets|sachet|sachets|ml|gm|gram|grams|kg|pack|packs|bottle|bottles|strips?)\b/gi;
+  const COMBO_RE = /\bcombo\b|\bbundle\b|\bkit\b|\bpack\b|\bset\b|\bcollection\b|\bduo\b|\btrio\b/i;
+
+  function getProductBaseKey(title: string): string {
+    return (title || '')
+      .toLowerCase()
+      .replace(VARIANT_RE, '')
+      .replace(/[^a-z0-9\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function getVariantLabel(title: string): string | null {
+    const matches = [...(title || '').matchAll(VARIANT_RE)];
+    if (matches.length === 0) return null;
+    return matches.map(m => `${m[1]} ${m[2]}`).join(', ');
+  }
+
+  interface ProductGroup {
+    baseKey: string;
+    products: ProductItem[];
+  }
+
+  function groupProductsByBase(products: ProductItem[]): ProductGroup[] {
+    const groups = new Map<string, ProductItem[]>();
+    const order: string[] = [];
+    for (const product of products) {
+      const isCombo = COMBO_RE.test(product.title || '');
+      // Combo/bundle products stand alone — never group with individual products
+      const key = isCombo ? `__combo__${product.id}` : getProductBaseKey(product.title || '');
+      if (!key || key.length < 3) {
+        const soloKey = `__solo__${product.id}`;
+        groups.set(soloKey, [product]);
+        order.push(soloKey);
+        continue;
+      }
+      if (!groups.has(key)) {
+        groups.set(key, []);
+        order.push(key);
+      }
+      groups.get(key)!.push(product);
+    }
+    return order.map(key => ({ baseKey: key, products: groups.get(key)! }));
+  }
+
+  function handleVariantSelect(baseKey: string, productId: string) {
+    setSelectedVariants(prev => ({ ...prev, [baseKey]: productId }));
+  }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -561,7 +619,6 @@ export default function AgentChat({
           { label: "Confidence & intimate wellness", prompt: "I'm facing concerns around confidence and intimate wellness." },
           { label: "Diabetes / Blood sugar", prompt: "I need help managing my diabetes or blood sugar levels." },
           { label: "General strength & recovery", prompt: "I want to improve my general strength and recovery." },
-          { label: "Something else", prompt: "I have a different concern that I'd like help with." },
         ],
         hi: [
           { label: "कम ऊर्जा और थकान", prompt: "मुझे कम ऊर्जा और थकान हो रही है। मैं क्या करूँ?" },
@@ -1293,10 +1350,13 @@ export default function AgentChat({
 
       // Update sidebar: final products (Stage E) take priority; contextProducts update it during consultation
       if (data.products && Array.isArray(data.products) && data.products.length > 0) {
-        console.log('[AgentChat] Final products received:', data.products.length);
+        // Final recommended products from chat — sync to right panel immediately
+        setProductResults(data.products);
+        console.log('[AgentChat] Final products synced to sidebar:', data.products.length);
       } else if (data.contextProducts && Array.isArray(data.contextProducts) && data.contextProducts.length > 0) {
         // Update sidebar panel with context-relevant products during consultation
-        setProductResults(data.contextProducts);
+        // But only if we don't already have final products displayed
+        setProductResults(prev => prev.length > 0 && prev.some(p => (p as any)._isFinal) ? prev : data.contextProducts);
         setCurrentCategory(null); // keep in "context" mode — title shows "Suggested for You"
         console.log('[AgentChat] Context products updating sidebar:', data.contextProducts.length);
       }
@@ -1635,324 +1695,378 @@ export default function AgentChat({
       <div className="wai-frame">
         <div className="wai-root">
 
-          {/* ══ LEFT PANEL: Chat ══ */}
-          <div className="wai-chat">
-
-            {/* ─ Header ─ */}
-            <div className="wai-header">
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                <div className="wai-avatar">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="8" r="4" fill="white" opacity="0.95" />
-                    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="white" strokeWidth="2.2" strokeLinecap="round" opacity="0.95" />
-                  </svg>
-                </div>
-                <span className="wai-online-dot" />
+          {/* ─ Header (always visible, lives outside panels for mobile) ─ */}
+          <div className="wai-header">
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <div className="wai-avatar">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="8" r="4" fill="white" opacity="0.95" />
+                  <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="white" strokeWidth="2.2" strokeLinecap="round" opacity="0.95" />
+                </svg>
               </div>
-              <div style={{ flex: 1 }}>
-                <p className="wai-agent-name">Wellness AI</p>
-                <p className="wai-agent-status">● Online — ready to help</p>
-              </div>
+              <span className="wai-online-dot" />
             </div>
-
-            {/* ─ Messages ─ */}
-            <div className="wai-messages">
-              <div className="wai-messages-inner">
-                {messages.length === 0 ? (
-                  /* Language selector */
-                  <div className="wai-welcome">
-                    <div className="wai-welcome-icon">
-                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" fill="#14b8a6" />
-                      </svg>
-                    </div>
-                    <h3 className="wai-welcome-title">👋 Hello / نمستے / مرحباً</h3>
-                    <p className="wai-welcome-sub">Choose your preferred language to begin</p>
-                    <div className="wai-lang-grid">
-                      {greetingLanguages.map((lang) => {
-                        const greetingMap: Record<string, string> = {
-                          en: 'Hello', hi: 'नमस्ते', ur: 'السلام عليکم', bn: 'নমস্কার', ar: 'مرحباً',
-                        };
-                        const greeting = greetingMap[lang.code] || lang.name;
-                        const isRtl = lang.code === 'ur' || lang.code === 'ar';
-                        return (
-                          <button key={lang.code} onClick={() => handleLanguageSelect(lang.code)}
-                            dir={isRtl ? 'rtl' : 'ltr'} className="wai-lang-btn">
-                            <span className="wai-lang-greeting">{greeting}</span>
-                            <span className="wai-lang-name">{lang.name}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  messages.map((message) => {
-                    const isUser = message.role === 'user';
-                    const meta = message.metadata as any;
-                    const isProductMsg = meta?.type === 'products';
-                    return (
-                      <div key={message.id} className={`wai-msg-row${isUser ? ' wai-msg-user-row' : ''}`}>
-                        {/* Assistant avatar */}
-                        {!isUser && (
-                          <div className="wai-msg-avatar">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                              <circle cx="12" cy="8" r="4" fill="white" opacity="0.9" />
-                              <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
-                            </svg>
-                          </div>
-                        )}
-                        <div className={`wai-bubble${isUser ? ' wai-bubble-user' : ' wai-bubble-ai'}`}>
-                          {isProductMsg ? (
-                            <p className="wai-bubble-text">
-                              ✅ {message.content}
-                            </p>
-                          ) : (
-                            <p className="wai-bubble-text">
-                              {(message.content || '').replace(/^#{1,6}\s+/gm, '').replace(/^[\s>*+-]+\s+/gm, '').replace(/(\*\*|__)(.*?)\1/g, '$2').replace(/(\*|_)(.*?)\1/g, '$2')}
-                            </p>
-                          )}
-                          {/* Suggestion chips */}
-                          {!isUser && !isProductMsg && Array.isArray(meta?.suggestions) && meta.suggestions.length > 0 && (
-                            <div className="wai-chips">
-                              {meta.suggestions.map((s: any, i: number) => (
-                                <button key={i} type="button" onClick={() => handleSendMessage(s.prompt)} className="wai-chip">
-                                  {s.label}
-                                </button>
-                              ))}
-                              <button type="button" onClick={handleOtherClick} className="wai-chip wai-chip-muted">
-                                Other
-                              </button>
-                            </div>
-                          )}
-                          <span className={`wai-time${isUser ? ' wai-time-user' : ''}`}>
-                            {formatTime(message.createdAt)}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-
-                {/* Typing indicator */}
-                {loading && (
-                  <div className="wai-msg-row">
-                    <div className="wai-msg-avatar">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="8" r="4" fill="white" opacity="0.9" />
-                        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
-                      </svg>
-                    </div>
-                    <div className="wai-bubble wai-bubble-ai wai-typing">
-                      <span className="wai-dot" style={{ animationDelay: '0ms' }} />
-                      <span className="wai-dot" style={{ animationDelay: '160ms' }} />
-                      <span className="wai-dot" style={{ animationDelay: '320ms' }} />
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
+            <div style={{ flex: 1 }}>
+              <p className="wai-agent-name">Wellness AI</p>
+              <p className="wai-agent-status">● Online — ready to help</p>
             </div>
-
-            {/* ─ Input ─ */}
-            <form onSubmit={handleSubmit} className="wai-input-bar">
-              <div className="wai-input-wrap">
-                {/* Mic */}
-                <button type="button" onClick={handleVoiceInput} disabled={loading || !languageConfirmed}
-                  className={`wai-mic-btn${isListening ? ' wai-mic-active' : ''}`}
-                  title={isListening ? 'Stop' : 'Voice input'}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    {isListening
-                      ? <><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></>
-                      : <><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></>}
-                  </svg>
+            {/* Mobile: Chat/Picks tab switcher (shown after language confirmed) */}
+            {languageConfirmed && (
+              <div className="wai-mobile-tabs">
+                <button type="button"
+                  className={`wai-mobile-tab${mobileTab === 'chat' ? ' wai-mobile-tab-active' : ''}`}
+                  onClick={() => setMobileTab('chat')}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>
+                  Chat
                 </button>
-                <input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value)}
-                  placeholder={inputPlaceholder}
-                  disabled={loading || !languageConfirmed}
-                  className="wai-input" />
-                {/* Send */}
-                <button type="submit" disabled={loading || !input.trim() || !languageConfirmed}
-                  className="wai-send-btn">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <path d="M22 2L11 13" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                <button type="button"
+                  className={`wai-mobile-tab${mobileTab === 'picks' ? ' wai-mobile-tab-active' : ''}`}
+                  onClick={() => setMobileTab('picks')}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" /></svg>
+                  Picks
                 </button>
               </div>
-              <p className="wai-input-hint">Powered by Wellness AI</p>
-            </form>
+            )}
+            {/* Mobile: menu dots (shown before language confirmed) */}
+            {!languageConfirmed && (
+              <button type="button" className="wai-header-menu" aria-label="Menu">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
+              </button>
+            )}
           </div>
 
-          {/* ══ RIGHT PANEL: Products ══ */}
-          <div className="wai-products">
-            {productResults.length === 0 ? (
-              /* Empty state */
-              <>
-                <div className="wai-panel-header">
-                  <p className="wai-panel-title">Your Wellness Picks</p>
-                  <p className="wai-panel-sub">Products will appear after your consultation</p>
-                </div>
-                <div className="wai-empty-state">
-                  <div className="wai-empty-icon">
-                    <svg width="44" height="44" viewBox="0 0 60 60" fill="none">
-                      <ellipse cx="30" cy="30" rx="18" ry="26" fill="#4a7c6f" transform="rotate(-10 30 30)" opacity="0.85" />
-                      <ellipse cx="30" cy="30" rx="10" ry="22" fill="#2d5a4f" transform="rotate(-10 30 30)" opacity="0.6" />
-                      <path d="M30 50 Q28 40 30 20" stroke="#1a3a2e" strokeWidth="1.5" strokeLinecap="round" opacity="0.4" />
-                    </svg>
-                  </div>
-                  <h3 className="wai-empty-title">Share your concern</h3>
-                  <p className="wai-empty-desc">Tell me how you&apos;re feeling and I&apos;ll find the right wellness products for you.</p>
-                  <div className="wai-empty-chips">
-                    {['Low Energy', 'Poor Sleep', 'Stress Relief'].map(suggestion => (
-                      <button key={suggestion} type="button"
-                        onClick={() => { if (languageConfirmed) handleSendMessage(`I have ${suggestion.toLowerCase()} concern`); }}
-                        className="wai-empty-chip">
-                        {suggestion}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : (
-              /* Products list */
-              <>
-                <div className="wai-panel-header">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <p className="wai-panel-title">
-                      {currentCategory ? `Recommended for ${currentCategory}` : 'Suggested for You'}
-                    </p>
-                    {currentCategory ? (
-                      <span className="wai-cat-badge">
-                        <span className="wai-badge-dot" />
-                        {currentCategory}
-                      </span>
-                    ) : (
-                      <span className="wai-cat-badge" style={{ background: 'rgba(20,184,166,0.12)', color: '#0d7060', border: '1px solid rgba(20,184,166,0.25)' }}>
-                        <span className="wai-badge-dot" style={{ background: '#14b8a6', animation: 'wai-pulse 1.5s infinite' }} />
-                        Live
-                      </span>
-                    )}
-                  </div>
-                  <p className="wai-panel-sub">
-                    {currentCategory
-                      ? `${productResults.length} product${productResults.length !== 1 ? 's' : ''} matched`
-                      : 'Updating based on your conversation'}
-                  </p>
-                </div>
+          {/* ═══ Panel container ═══ */}
+          <div className="wai-panels">
 
-                <div className="wai-product-scroll">
-                  <div className="wai-product-grid">
-                    {productResults.map((product, idx) => {
-                      const cartItem = cartItems.find(item => item.product.id === product.id);
-                      const isAdding = addingProductIds.has(product.id);
-                      const isBestMatch = idx === 0;
-                      const tags = Array.isArray(product.features) ? product.features.slice(0, 3) : [];
-                      const tagPalette = [
-                        { bg: 'rgba(20,184,166,0.12)', color: '#0d7060', border: 'rgba(20,184,166,0.22)' },
-                        { bg: 'rgba(139,92,246,0.1)', color: '#6d28d9', border: 'rgba(139,92,246,0.2)' },
-                        { bg: 'rgba(249,115,22,0.1)', color: '#c2410c', border: 'rgba(249,115,22,0.2)' },
-                      ];
+            {/* ══ LEFT PANEL: Chat ══ */}
+            <div className={`wai-chat${mobileTab === 'chat' ? ' wai-mobile-active' : ''}`}>
+
+              {/* ─ Messages ─ */}
+              <div className="wai-messages">
+                <div className="wai-messages-inner">
+                  {messages.length === 0 ? (
+                    /* Language selector */
+                    <div className="wai-welcome">
+                      <div className="wai-welcome-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" fill="#14b8a6" />
+                        </svg>
+                      </div>
+                      <h3 className="wai-welcome-title">👋 Hello / نمستے / مرحباً</h3>
+                      <p className="wai-welcome-sub">Choose your preferred language to begin</p>
+                      <div className="wai-lang-grid">
+                        {greetingLanguages.map((lang) => {
+                          const greetingMap: Record<string, string> = {
+                            en: 'Hello', hi: 'नमस्ते', ur: 'السلام عليکم', bn: 'নমস্কার', ar: 'مرحباً',
+                          };
+                          const greeting = greetingMap[lang.code] || lang.name;
+                          const isRtl = lang.code === 'ur' || lang.code === 'ar';
+                          return (
+                            <button key={lang.code} onClick={() => handleLanguageSelect(lang.code)}
+                              dir={isRtl ? 'rtl' : 'ltr'} className="wai-lang-btn">
+                              <span className="wai-lang-greeting">{greeting}</span>
+                              <span className="wai-lang-name">{lang.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    messages.map((message) => {
+                      const isUser = message.role === 'user';
+                      const meta = message.metadata as any;
+                      const isProductMsg = meta?.type === 'products';
                       return (
-                        <div key={product.id} className="wai-product-card">
-                          {/* Image */}
-                          <div className="wai-product-img-wrap">
-                            {product.imageUrl ? (
-                              <img src={product.imageUrl} alt={product.title} className="wai-product-img" />
+                        <div key={message.id} className={`wai-msg-row${isUser ? ' wai-msg-user-row' : ''}`}>
+                          {/* Assistant avatar */}
+                          {!isUser && (
+                            <div className="wai-msg-avatar">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                <circle cx="12" cy="8" r="4" fill="white" opacity="0.9" />
+                                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
+                              </svg>
+                            </div>
+                          )}
+                          <div className={`wai-bubble${isUser ? ' wai-bubble-user' : ' wai-bubble-ai'}`}>
+                            {isProductMsg ? (
+                              <p className="wai-bubble-text">
+                                ✅ {message.content}
+                              </p>
                             ) : (
-                              <div className="wai-product-img-placeholder">🌿</div>
+                              <p className="wai-bubble-text">
+                                {(message.content || '').replace(/^#{1,6}\s+/gm, '').replace(/^[\s>*+-]+\s+/gm, '').replace(/(\*\*|__)(.*?)\1/g, '$2').replace(/(\*|_)(.*?)\1/g, '$2')}
+                              </p>
                             )}
-                            {isBestMatch && (
-                              <span className="wai-best-badge">★ Best Match</span>
-                            )}
-                          </div>
-
-                          {/* Details */}
-                          <div className="wai-product-body">
-                            <p className="wai-product-title">{product.title}</p>
-
-                            {tags.length > 0 && (
-                              <div className="wai-product-tags">
-                                {tags.map((tag: string, i: number) => (
-                                  <span key={i} style={{
-                                    padding: '2px 8px', borderRadius: '20px',
-                                    fontSize: '10px', fontWeight: 600,
-                                    background: tagPalette[i % 3].bg,
-                                    color: tagPalette[i % 3].color,
-                                    border: `1px solid ${tagPalette[i % 3].border}`,
-                                  }}>
-                                    {tag}
-                                  </span>
+                            {/* Suggestion chips */}
+                            {!isUser && !isProductMsg && Array.isArray(meta?.suggestions) && meta.suggestions.length > 0 && (
+                              <div className="wai-chips">
+                                {meta.suggestions.map((s: any, i: number) => (
+                                  <button key={i} type="button" onClick={() => handleSendMessage(s.prompt)} className="wai-chip">
+                                    {s.label}
+                                  </button>
                                 ))}
+                                <button type="button" onClick={handleOtherClick} className="wai-chip wai-chip-muted">
+                                  Other
+                                </button>
                               </div>
                             )}
-
-                            {product.description && (
-                              <p className="wai-product-desc">{product.description}</p>
-                            )}
-
-                            {/* Stars */}
-                            <div className="wai-product-stars">
-                              {[1, 2, 3, 4, 5].map(s => (
-                                <svg key={s} width="11" height="11" viewBox="0 0 24 24"
-                                  fill={s <= 4 ? '#f59e0b' : 'none'} stroke="#f59e0b" strokeWidth="1.5">
-                                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                                </svg>
-                              ))}
-                            </div>
-
-                            {product.price && (
-                              <p className="wai-product-price">{product.price}</p>
-                            )}
-
-                            {/* Actions */}
-                            <div className="wai-product-actions">
-                              <a href={product.url} target="_blank" rel="noreferrer" className="wai-view-btn" title="View product">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-                                </svg>
-                              </a>
-                              <button type="button" onClick={() => handleAddToCart(product, 1)}
-                                disabled={!!cartItem || isAdding}
-                                className={`wai-cart-btn${cartItem ? ' wai-cart-added' : isAdding ? ' wai-cart-adding' : ''}`}>
-                                {cartItem ? (
-                                  <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg> Added</>
-                                ) : isAdding ? (
-                                  <><span className="wai-spinner" /> Adding...</>
-                                ) : (
-                                  <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 01-8 0" /></svg> Add to Cart</>
-                                )}
-                              </button>
-                            </div>
+                            <span className={`wai-time${isUser ? ' wai-time-user' : ''}`}>
+                              {formatTime(message.createdAt)}
+                            </span>
                           </div>
                         </div>
                       );
-                    })}
-                  </div>
+                    })
+                  )}
 
-                  {/* Cart summary */}
-                  {cartItems.length > 0 && (
-                    <div className="wai-cart-summary">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0f766e" strokeWidth="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 01-8 0" /></svg>
-                        <span className="wai-cart-count">{cartItems.reduce((s, i) => s + i.quantity, 0)} item{cartItems.reduce((s, i) => s + i.quantity, 0) !== 1 ? 's' : ''} in cart</span>
+                  {/* Typing indicator */}
+                  {loading && (
+                    <div className="wai-msg-row">
+                      <div className="wai-msg-avatar">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="8" r="4" fill="white" opacity="0.9" />
+                          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
+                        </svg>
                       </div>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        {(() => {
-                          const cartUrl = cartItems[0]?.product ? (() => { try { return new URL(cartItems[0].product.url).origin + '/cart'; } catch { return '/cart'; } })() : '/cart';
-                          return (
-                            <a href={cartUrl} target="_blank" rel="noreferrer" className="wai-cart-link">View Cart</a>
-                          );
-                        })()}
-                        {checkoutLink && (
-                          <a href={checkoutLink} target="_blank" rel="noreferrer" className="wai-cart-link wai-checkout-link">Checkout →</a>
-                        )}
+                      <div className="wai-bubble wai-bubble-ai wai-typing">
+                        <span className="wai-dot" style={{ animationDelay: '0ms' }} />
+                        <span className="wai-dot" style={{ animationDelay: '160ms' }} />
+                        <span className="wai-dot" style={{ animationDelay: '320ms' }} />
                       </div>
                     </div>
                   )}
+                  <div ref={messagesEndRef} />
                 </div>
-              </>
-            )}
-          </div>
+              </div>
+
+              {/* ─ Input ─ */}
+              <form onSubmit={handleSubmit} className="wai-input-bar">
+                <div className="wai-input-wrap">
+                  {/* Mic */}
+                  <button type="button" onClick={handleVoiceInput} disabled={loading || !languageConfirmed}
+                    className={`wai-mic-btn${isListening ? ' wai-mic-active' : ''}`}
+                    title={isListening ? 'Stop' : 'Voice input'}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      {isListening
+                        ? <><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></>
+                        : <><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></>}
+                    </svg>
+                  </button>
+                  <input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value)}
+                    placeholder={inputPlaceholder}
+                    disabled={loading || !languageConfirmed}
+                    className="wai-input" />
+                  {/* Send */}
+                  <button type="submit" disabled={loading || !input.trim() || !languageConfirmed}
+                    className="wai-send-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                      <path d="M22 2L11 13" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                </div>
+                <p className="wai-input-hint">Powered by Wellness AI</p>
+              </form>
+            </div>
+
+            {/* ══ RIGHT PANEL: Products ══ */}
+            <div className={`wai-products${mobileTab === 'picks' ? ' wai-mobile-active' : ''}`}>
+              {productResults.length === 0 ? (
+                /* Empty state */
+                <>
+                  <div className="wai-panel-header">
+                    <p className="wai-panel-title">Your Wellness Picks</p>
+                    <p className="wai-panel-sub">Products will appear after your consultation</p>
+                  </div>
+                  <div className="wai-empty-state">
+                    <div className="wai-empty-icon">
+                      <svg width="44" height="44" viewBox="0 0 60 60" fill="none">
+                        <ellipse cx="30" cy="30" rx="18" ry="26" fill="#4a7c6f" transform="rotate(-10 30 30)" opacity="0.85" />
+                        <ellipse cx="30" cy="30" rx="10" ry="22" fill="#2d5a4f" transform="rotate(-10 30 30)" opacity="0.6" />
+                        <path d="M30 50 Q28 40 30 20" stroke="#1a3a2e" strokeWidth="1.5" strokeLinecap="round" opacity="0.4" />
+                      </svg>
+                    </div>
+                    <h3 className="wai-empty-title">Share your concern</h3>
+                    <p className="wai-empty-desc">Tell me how you&apos;re feeling and I&apos;ll find the right wellness products for you.</p>
+                    <div className="wai-empty-chips">
+                      {['Low Energy', 'Poor Sleep', 'Stress Relief'].map(suggestion => (
+                        <button key={suggestion} type="button"
+                          onClick={() => { if (languageConfirmed) handleSendMessage(`I have ${suggestion.toLowerCase()} concern`); }}
+                          className="wai-empty-chip">
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Products list */
+                <>
+                  <div className="wai-panel-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <p className="wai-panel-title">
+                        {currentCategory ? `Recommended for ${currentCategory}` : 'Suggested for You'}
+                      </p>
+                      {currentCategory ? (
+                        <span className="wai-cat-badge">
+                          <span className="wai-badge-dot" />
+                          {currentCategory}
+                        </span>
+                      ) : (
+                        <span className="wai-cat-badge" style={{ background: 'rgba(20,184,166,0.12)', color: '#0d7060', border: '1px solid rgba(20,184,166,0.25)' }}>
+                          <span className="wai-badge-dot" style={{ background: '#14b8a6', animation: 'wai-pulse 1.5s infinite' }} />
+                          Live
+                        </span>
+                      )}
+                    </div>
+                    <p className="wai-panel-sub">
+                      {currentCategory
+                        ? `${productResults.length} product${productResults.length !== 1 ? 's' : ''} matched`
+                        : 'Updating based on your conversation'}
+                    </p>
+                  </div>
+
+                  <div className="wai-product-scroll">
+                    <div className="wai-product-grid">
+                      {groupProductsByBase(productResults).map((group, groupIdx) => {
+                        const hasVariants = group.products.length > 1;
+                        // Find the selected variant or default to the first product in the group
+                        const selectedId = selectedVariants[group.baseKey];
+                        const product = hasVariants
+                          ? (group.products.find(p => p.id === selectedId) || group.products[0])
+                          : group.products[0];
+                        const cartItem = cartItems.find(item => item.product.id === product.id);
+                        const isAdding = addingProductIds.has(product.id);
+                        const isBestMatch = groupIdx === 0;
+                        const tags = Array.isArray(product.features) ? product.features.slice(0, 3) : [];
+                        const tagPalette = [
+                          { bg: 'rgba(20,184,166,0.12)', color: '#0d7060', border: 'rgba(20,184,166,0.22)' },
+                          { bg: 'rgba(139,92,246,0.1)', color: '#6d28d9', border: 'rgba(139,92,246,0.2)' },
+                          { bg: 'rgba(249,115,22,0.1)', color: '#c2410c', border: 'rgba(249,115,22,0.2)' },
+                        ];
+                        return (
+                          <div key={group.baseKey} className="wai-product-card">
+                            {/* Image */}
+                            <div className="wai-product-img-wrap">
+                              {product.imageUrl ? (
+                                <img src={product.imageUrl} alt={product.title} className="wai-product-img" />
+                              ) : (
+                                <div className="wai-product-img-placeholder">🌿</div>
+                              )}
+                              {isBestMatch && (
+                                <span className="wai-best-badge">★ Best Match</span>
+                              )}
+                            </div>
+
+                            {/* Details */}
+                            <div className="wai-product-body">
+                              <p className="wai-product-title">{product.title}</p>
+
+                              {/* Variant chips: shown when multiple duration/pack variants exist */}
+                              {hasVariants && (
+                                <div className="wai-variant-chips">
+                                  {group.products.map(v => {
+                                    const label = getVariantLabel(v.title || '') || v.title;
+                                    const isSelected = v.id === product.id;
+                                    return (
+                                      <button
+                                        key={v.id}
+                                        type="button"
+                                        onClick={() => handleVariantSelect(group.baseKey, v.id)}
+                                        className={`wai-variant-chip${isSelected ? ' wai-variant-active' : ''}`}
+                                      >
+                                        {label}
+                                        {v.price && <span className="wai-variant-price">{v.price}</span>}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {tags.length > 0 && (
+                                <div className="wai-product-tags">
+                                  {tags.map((tag: string, i: number) => (
+                                    <span key={i} style={{
+                                      padding: '2px 8px', borderRadius: '20px',
+                                      fontSize: '10px', fontWeight: 600,
+                                      background: tagPalette[i % 3].bg,
+                                      color: tagPalette[i % 3].color,
+                                      border: `1px solid ${tagPalette[i % 3].border}`,
+                                    }}>
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {product.description && (
+                                <p className="wai-product-desc">{product.description}</p>
+                              )}
+
+                              {/* Stars */}
+                              <div className="wai-product-stars">
+                                {[1, 2, 3, 4, 5].map(s => (
+                                  <svg key={s} width="11" height="11" viewBox="0 0 24 24"
+                                    fill={s <= 4 ? '#f59e0b' : 'none'} stroke="#f59e0b" strokeWidth="1.5">
+                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                  </svg>
+                                ))}
+                              </div>
+
+                              {product.price && (
+                                <p className="wai-product-price">{product.price}</p>
+                              )}
+
+                              {/* Actions */}
+                              <div className="wai-product-actions">
+                                <a href={product.url} target="_blank" rel="noreferrer" className="wai-view-btn" title="View product">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+                                  </svg>
+                                </a>
+                                <button type="button" onClick={() => handleAddToCart(product, 1)}
+                                  disabled={!!cartItem || isAdding}
+                                  className={`wai-cart-btn${cartItem ? ' wai-cart-added' : isAdding ? ' wai-cart-adding' : ''}`}>
+                                  {cartItem ? (
+                                    <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg> Added</>
+                                  ) : isAdding ? (
+                                    <><span className="wai-spinner" /> Adding...</>
+                                  ) : (
+                                    <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 01-8 0" /></svg> Add to Cart</>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Cart summary */}
+                    {cartItems.length > 0 && (
+                      <div className="wai-cart-summary">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0f766e" strokeWidth="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 01-8 0" /></svg>
+                          <span className="wai-cart-count">{cartItems.reduce((s, i) => s + i.quantity, 0)} item{cartItems.reduce((s, i) => s + i.quantity, 0) !== 1 ? 's' : ''} in cart</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          {(() => {
+                            const cartUrl = cartItems[0]?.product ? (() => { try { return new URL(cartItems[0].product.url).origin + '/cart'; } catch { return '/cart'; } })() : '/cart';
+                            return (
+                              <a href={cartUrl} target="_blank" rel="noreferrer" className="wai-cart-link">View Cart</a>
+                            );
+                          })()}
+                          {checkoutLink && (
+                            <a href={checkoutLink} target="_blank" rel="noreferrer" className="wai-cart-link wai-checkout-link">Checkout →</a>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>{/* end wai-panels */}
 
           {/* ══ Styles ══ */}
           <style>{`
@@ -1971,13 +2085,22 @@ export default function AgentChat({
           /* ── Root layout ─────────────────────────────── */
           .wai-root {
             display: flex;
-            flex-direction: row;
+            flex-direction: column;
             flex: 1;
             height: 100%;
             overflow: hidden;
             background: #fff;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
             color: #111827;
+          }
+
+          /* ── Panels container (row on desktop, column on mobile) ── */
+          .wai-panels {
+            display: flex;
+            flex-direction: row;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
           }
 
           /* ── Chat panel (45% of wai-root) ──────────────── */
@@ -2234,6 +2357,26 @@ export default function AgentChat({
             display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
           }
           .wai-product-tags { display: flex; flex-wrap: wrap; gap: 3px; }
+          .wai-variant-chips {
+            display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0;
+          }
+          .wai-variant-chip {
+            padding: 3px 8px; border-radius: 16px;
+            font-size: 10px; font-weight: 600; line-height: 1.3;
+            border: 1.5px solid #e5e7eb; background: #f9fafb; color: #374151;
+            cursor: pointer; transition: all 0.15s ease;
+            display: flex; flex-direction: column; align-items: center; gap: 1px;
+          }
+          .wai-variant-chip:hover {
+            border-color: #14b8a6; background: rgba(20,184,166,0.06); color: #0f766e;
+          }
+          .wai-variant-active {
+            border-color: #14b8a6; background: rgba(20,184,166,0.12); color: #0f766e;
+            box-shadow: 0 0 0 1px rgba(20,184,166,0.2);
+          }
+          .wai-variant-price {
+            font-size: 9px; font-weight: 700; color: #0f766e; opacity: 0.8;
+          }
           .wai-product-desc { display: none; }
           .wai-product-stars { display: none; }
           .wai-product-price { margin: 2px 0 0; font-size: 13px; font-weight: 800; color: #0f766e; letter-spacing: -0.01em; }
@@ -2294,18 +2437,98 @@ export default function AgentChat({
           .wai-checkout-link { background: #134e4a; color: #fff; border-color: #134e4a; }
           .wai-checkout-link:hover { background: #0f766e; border-color: #0f766e; }
 
+          /* ── Header menu button (three dots) ────────── */
+          .wai-header-menu {
+            display: none; /* hidden on desktop */
+            background: none; border: none; cursor: pointer;
+            padding: 6px; opacity: 0.85; flex-shrink: 0;
+          }
+
+          /* ── Mobile tab switcher ──────────────────────── */
+          .wai-mobile-tabs {
+            display: none; /* hidden on desktop */
+            align-items: center; gap: 4px; flex-shrink: 0;
+          }
+          .wai-mobile-tab {
+            display: flex; align-items: center; gap: 5px;
+            padding: 6px 14px; border-radius: 24px;
+            border: 1.5px solid rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.7);
+            font-size: 12px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s; white-space: nowrap;
+          }
+          .wai-mobile-tab:hover { background: rgba(255,255,255,0.15); }
+          .wai-mobile-tab-active {
+            background: #fff !important;
+            color: #0f766e !important;
+            border-color: #fff !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+          }
+          .wai-mobile-tab-active svg { stroke: #0f766e; }
+
           /* ── Responsive: Mobile ──────────────────────── */
           @media (max-width: 640px) {
-            .wai-root { flex-direction: column; }
+            .wai-frame { border-radius: 0; border: none; box-shadow: none; }
+            .wai-panels { flex-direction: column; }
+
+            /* Header adjustments */
+            .wai-header-menu { display: flex; }
+            .wai-mobile-tabs { display: flex; }
+
+            /* Hide both panels by default on mobile, show only active */
             .wai-chat {
               width: 100% !important; max-width: 100% !important; min-width: unset !important;
-              border-right: none !important; border-bottom: 1px solid #e0f2ee;
-              flex: 0 0 55%; min-height: 0; overflow: hidden;
+              border-right: none !important;
+              display: none !important;
+              flex: 1 1 auto; min-height: 0; overflow: hidden;
             }
             .wai-products {
-              width: 100% !important; flex: 1; min-height: 0;
+              width: 100% !important;
+              display: none !important;
+              flex: 1 1 auto; min-height: 0;
             }
+            .wai-chat.wai-mobile-active { display: flex !important; }
+            .wai-products.wai-mobile-active { display: flex !important; }
+
             .wai-product-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+
+            /* Welcome screen: vertically centered, spacious layout */
+            .wai-welcome {
+              padding: 42px 24px; gap: 12px; flex: 1; min-height: 0;
+            }
+            .wai-welcome-icon {
+              width: 72px; height: 72px; margin-bottom: 8px;
+              box-shadow: 0 4px 20px rgba(20,184,166,0.18);
+            }
+            .wai-welcome-icon svg { width: 36px; height: 36px; }
+            .wai-welcome-title { font-size: 22px; }
+            .wai-welcome-sub { font-size: 13px; }
+            .wai-lang-grid {
+              display: grid !important; grid-template-columns: 1fr 1fr;
+              gap: 10px; width: 100%; max-width: 300px;
+              margin-top: 14px;
+            }
+            .wai-lang-btn {
+              padding: 14px 10px; border-radius: 16px;
+              border: 1.5px solid #e5e7eb; background: #fafafa;
+              justify-content: center; width: 100%;
+            }
+            .wai-lang-btn:last-child:nth-child(odd) {
+              grid-column: 1 / -1; max-width: 160px; justify-self: center;
+            }
+            .wai-lang-greeting { font-size: 17px; }
+            .wai-lang-name { font-size: 11px; }
+
+            /* Input bar: match reference design */
+            .wai-input-wrap {
+              border-radius: 30px; padding: 5px 5px 5px 14px;
+            }
+            .wai-input { font-size: 13px; }
+            .wai-send-btn {
+              width: 38px; height: 38px;
+            }
+            .wai-input-hint { display: none; }
           }
           @media (max-width: 400px) {
             .wai-product-grid { grid-template-columns: 1fr; }

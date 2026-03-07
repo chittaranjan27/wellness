@@ -357,13 +357,71 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Get language from agent or use provided language
+    const responseLanguage = language || agent.language || 'en'
+
+    // Retrieve conversation history for the current session FIRST
+    // (needed by RAG query enhancement and stage detection)
+    // The AI needs the FULL conversation to detect which consultation stage it's in.
+    const messageWhere = sessionId
+      ? { agentId, sessionId }
+      : visitorId
+        ? { agentId, visitorId }
+        : { agentId }
+
+    const getExistingReport = async () => {
+      if (!prismaAny.consultationReport?.findFirst) return null
+      return prismaAny.consultationReport.findFirst({
+        where: {
+          agentId,
+          sessionId: sessionId || null,
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+    }
+    const recentMessages = await prisma.chatMessage.findMany({
+      where: messageWhere,
+      orderBy: { createdAt: 'desc' },
+      take: 20, // Enough to cover the full consultation (A→E is ~10 messages)
+      select: {
+        role: true,
+        content: true,
+      },
+    })
+
+    // Reverse to get chronological order (oldest first)
+    const conversationHistory = recentMessages.reverse().map((msg) => ({
+      role: msg.role as 'user' | 'assistant',
+      content: msg.content,
+    }))
+
     // Retrieve relevant context from knowledge base using RAG
     let contextChunks: string[] = []
     let relatedDocuments: ProductSource[] = []
     if (agent.documents.length > 0) {
       try {
-        // Generate embedding for user query
-        const queryEmbedding = await generateEmbedding(message)
+        // Determine the best query for embedding search
+        // If user is accepting a product offer ("Yes, show me"), use their identified concern
+        // instead of the generic acceptance message, so RAG finds concern-relevant products
+        let ragQuery = message
+        const lastAssistantMsg = conversationHistory.length > 0
+          ? [...conversationHistory].reverse().find((m) => m.role === 'assistant')?.content ?? null
+          : null
+        if (isAcceptingProductOffer(message, lastAssistantMsg)) {
+          // Extract the user's actual concern from earlier in the conversation
+          const userConcernMessages = conversationHistory
+            .filter((m) => m.role === 'user')
+            .slice(0, 3) // Concern is in early messages
+            .map((m) => m.content)
+            .join(' ')
+          if (userConcernMessages.trim().length > 5) {
+            ragQuery = `Ayurvedic products for: ${userConcernMessages}`
+            console.log(`[RAG] Enhanced query for product stage: "${ragQuery.slice(0, 100)}..."`)
+          }
+        }
+
+        // Generate embedding for the (possibly enhanced) query
+        const queryEmbedding = await generateEmbedding(ragQuery)
 
         // Find similar chunks from vector DB
         const similarChunks = await findSimilarChunks(queryEmbedding, agentId, 5)
@@ -400,44 +458,6 @@ export async function POST(request: NextRequest) {
         // Continue without context if RAG fails
       }
     }
-
-    // Get language from agent or use provided language
-    const responseLanguage = language || agent.language || 'en'
-
-    // Retrieve conversation history for the current session
-    // The AI needs the FULL conversation to detect which consultation stage it's in.
-    // Using only 4 messages caused the AI to lose context and reset to Stage A.
-    const messageWhere = sessionId
-      ? { agentId, sessionId }
-      : visitorId
-        ? { agentId, visitorId }
-        : { agentId }
-
-    const getExistingReport = async () => {
-      if (!prismaAny.consultationReport?.findFirst) return null
-      return prismaAny.consultationReport.findFirst({
-        where: {
-          agentId,
-          sessionId: sessionId || null,
-        },
-        orderBy: { createdAt: 'desc' },
-      })
-    }
-    const recentMessages = await prisma.chatMessage.findMany({
-      where: messageWhere,
-      orderBy: { createdAt: 'desc' },
-      take: 20, // Enough to cover the full consultation (A→E is ~10 messages)
-      select: {
-        role: true,
-        content: true,
-      },
-    })
-
-    // Reverse to get chronological order (oldest first)
-    const conversationHistory = recentMessages.reverse().map((msg) => ({
-      role: msg.role as 'user' | 'assistant',
-      content: msg.content,
-    }))
 
     const lastAssistantMessage = conversationHistory.length > 0
       ? [...conversationHistory].reverse().find((m) => m.role === 'assistant')?.content ?? null
@@ -861,48 +881,64 @@ export async function POST(request: NextRequest) {
 
     const responseTime = Date.now() - startTime
 
-    // ── CONTEXT PRODUCTS: Fetch lightweight product hints every turn ──────────
-    // Uses direct keyword matching against user messages — reliable from the first turn.
-    // buildProductResults requires AI condition detection (returns empty at early stages).
+    // ── CONTEXT PRODUCTS: Only show products relevant to user's concern ──────────
+    // Uses the user's identified concern to filter products — not just keyword matching.
     let contextProducts: typeof products = []
     if (products.length === 0) {
       try {
-        const ctxDocs = await prisma.document.findMany({
-          where: {
-            agentId,
-            AND: [
-              { filepath: { startsWith: 'http' } },
-              { filepath: { contains: '/product/' } },
-            ],
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 40,
-          select: { id: true, filepath: true, filename: true, extractedText: true },
-        })
-        if (ctxDocs.length > 0) {
-          // Build keyword list from recent user messages (most reliable signal)
-          const recentUserMessages = [
-            ...fullConversationHistory.filter(m => m.role === 'user').slice(-3),
-            { role: 'user' as const, content: message },
-          ].map(m => m.content.toLowerCase()).join(' ')
+        // Detect the user's concern from conversation to filter context products
+        const allHistory = [
+          ...fullConversationHistory.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+          { role: 'user' as const, content: message },
+        ]
+        const userConcernMessages = allHistory
+          .filter((m) => m.role === 'user')
+          .slice(0, 3)
+          .map((m) => m.content.toLowerCase())
+          .join(' ')
 
-          // Use listProductsFromDocuments for reliable extraction + keyword ranking
-          const allCatalog = await listProductsFromDocuments(ctxDocs)
+        // Only show context products if we can detect a concern
+        const hasConcernContext = userConcernMessages.length > 10
 
-          // Score each product by keyword overlap with what the user described
-          const keywords = recentUserMessages.match(/\b\w{4,}\b/g) || []
-          // Score each product by keyword overlap with user messages
-          type ScoredProduct = ProductResult & { _score: number }
-          const scored: ScoredProduct[] = allCatalog.map((p: ProductResult): ScoredProduct => {
-            const haystack = `${p.title ?? ''} ${p.description ?? ''} ${(p.features ?? []).join(' ')}`.toLowerCase()
-            const score = keywords.reduce((s: number, kw: string) => s + (haystack.includes(kw) ? 1 : 0), 0)
-            return { ...p, _score: score }
+        if (hasConcernContext) {
+          const ctxDocs = await prisma.document.findMany({
+            where: {
+              agentId,
+              AND: [
+                { filepath: { startsWith: 'http' } },
+                { filepath: { contains: '/product/' } },
+              ],
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 40,
+            select: { id: true, filepath: true, filename: true, extractedText: true },
           })
+          if (ctxDocs.length > 0) {
+            // Build keyword list from user's concern messages (not generic messages)
+            const concernKeywords = userConcernMessages.match(/\b\w{4,}\b/g) || []
+            // Filter out generic/common words that don't indicate a specific concern
+            const genericWords = new Set(['want', 'need', 'help', 'like', 'show', 'know', 'tell', 'please', 'thank', 'thanks', 'what', 'have', 'with', 'this', 'that', 'your', 'more', 'also', 'just', 'good', 'well', 'been', 'much', 'very', 'some', 'from'])
+            const filteredKeywords = concernKeywords.filter((kw) => !genericWords.has(kw))
 
-          // Sort: scored matches first, then by title for consistent ordering
-          scored.sort((a: ScoredProduct, b: ScoredProduct) => b._score - a._score || (a.title ?? '').localeCompare(b.title ?? ''))
-          contextProducts = scored.slice(0, 4).map(({ _score: _s, ...p }: ScoredProduct) => p as ProductResult)
-          console.log(`[EmbedChat] Context products for sidebar: ${contextProducts.length} (top scores: ${scored.slice(0, 4).map((p: ScoredProduct) => p._score).join(',')})`)
+            if (filteredKeywords.length > 0) {
+              // Use listProductsFromDocuments for reliable extraction + keyword ranking
+              const allCatalog = await listProductsFromDocuments(ctxDocs)
+
+              // Score each product by keyword overlap with the user's concern
+              type ScoredProduct = ProductResult & { _score: number }
+              const scored: ScoredProduct[] = allCatalog.map((p: ProductResult): ScoredProduct => {
+                const haystack = `${p.title ?? ''} ${p.description ?? ''} ${(p.features ?? []).join(' ')}`.toLowerCase()
+                const score = filteredKeywords.reduce((s: number, kw: string) => s + (haystack.includes(kw) ? 1 : 0), 0)
+                return { ...p, _score: score }
+              })
+
+              // Only show products that actually match concern keywords (score > 0)
+              const relevant = scored.filter((p) => p._score > 0)
+              relevant.sort((a: ScoredProduct, b: ScoredProduct) => b._score - a._score || (a.title ?? '').localeCompare(b.title ?? ''))
+              contextProducts = relevant.slice(0, 4).map(({ _score: _s, ...p }: ScoredProduct) => p as ProductResult)
+              console.log(`[EmbedChat] Context products for sidebar: ${contextProducts.length} concern-relevant (top scores: ${relevant.slice(0, 4).map((p: ScoredProduct) => p._score).join(',')})`)
+            }
+          }
         }
       } catch (ctxErr) {
         console.warn('[EmbedChat] Context product fetch failed (non-critical):', ctxErr)

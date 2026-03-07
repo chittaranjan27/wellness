@@ -157,7 +157,7 @@
         iconImg.height = 32;
         iconImg.style.objectFit = 'contain';
         chatButton.appendChild(iconImg);
-        // Inject glow keyframes once
+        // Inject glow keyframes + mobile responsive styles once
         if (!document.getElementById('wai-widget-glow-styles')) {
           const glowStyle = document.createElement('style');
           glowStyle.id = 'wai-widget-glow-styles';
@@ -165,6 +165,22 @@
             @keyframes wai-btn-glow {
               0%, 100% { box-shadow: 0 4px 14px rgba(20,184,166,0.35), 0 0 20px rgba(20,184,166,0.2); }
               50% { box-shadow: 0 4px 20px rgba(20,184,166,0.5), 0 0 32px rgba(20,184,166,0.3); }
+            }
+            @media (max-width: 640px) {
+              [id^="ai-agent-chat-window-"] {
+                bottom: 0 !important;
+                right: 0 !important;
+                left: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                max-width: 100vw !important;
+                max-height: 100vh !important;
+                border-radius: 0 !important;
+                border: none !important;
+              }
+              [id^="ai-agent-chat-window-"] iframe {
+                border-radius: 0 !important;
+              }
             }
           `;
           document.head.appendChild(glowStyle);

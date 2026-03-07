@@ -88,11 +88,70 @@ export function isAcceptingProductOffer(userMessage: string, lastAssistantMessag
 }
 
 /**
- * Extract user problems, concerns, issues, and conditions from report or conversation
- * This identifies the specific issues discussed during consultation for precise product matching
+ * Known consultation concern categories from Stage A of the consultation flow.
+ * These are the exact options presented to the user.
+ */
+const KNOWN_CONCERNS: { keywords: string[]; label: string }[] = [
+  { keywords: ['low energy', 'fatigue', 'tired', 'exhausted', 'no energy', 'weakness', 'lethargy'], label: 'Low energy & fatigue' },
+  { keywords: ['stamina', 'performance', 'endurance', 'lasting longer', 'timing', 'physical activity'], label: 'Stamina & performance' },
+  { keywords: ['confidence', 'intimate', 'bedroom', 'erection', 'ed', 'premature', 'intimate wellness'], label: 'Confidence & intimate wellness' },
+  { keywords: ['diabetes', 'sugar', 'blood sugar', 'insulin', 'glucose', 'diabetic'], label: 'Diabetes / Blood sugar' },
+  { keywords: ['strength', 'recovery', 'muscle', 'gym', 'body building', 'fitness', 'general strength'], label: 'General strength & recovery' },
+]
+
+/**
+ * Detect the specific consultation concern selected by the user in Stage A.
+ * Scans conversation history for concern selection (button click or natural language).
+ * Returns the matched concern label or null if not found.
+ */
+function detectSelectedConcern(
+  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>
+): string | null {
+  if (conversationHistory.length === 0) return null
+
+  // Check early user messages (Stage A selection is typically in the first 1-4 user messages)
+  const userMessages = conversationHistory
+    .filter((m) => m.role === 'user')
+    .slice(0, 5) // Only check early messages for concern selection
+
+  for (const msg of userMessages) {
+    const lower = msg.content.toLowerCase().trim()
+
+    // 1. Exact match against known concern labels (user clicked a button)
+    for (const concern of KNOWN_CONCERNS) {
+      if (lower === concern.label.toLowerCase()) return concern.label
+    }
+
+    // 2. Keyword match for natural-language descriptions
+    for (const concern of KNOWN_CONCERNS) {
+      const matchCount = concern.keywords.filter((kw) => lower.includes(kw)).length
+      // Require at least one keyword match, prefer more specific matches
+      if (matchCount >= 1) return concern.label
+    }
+  }
+
+  return null
+}
+
+/**
+ * Extract user problems, concerns, issues, and conditions from report or conversation.
+ * PRIORITY ORDER:
+ * 1. Specific concern selected in Stage A of the consultation flow
+ * 2. Presenting concerns from the consultation report
+ * 3. Assessment problems from the report
+ * 4. Keyword extraction from conversation (fallback)
+ *
+ * This identifies the specific issues discussed during consultation for precise product matching.
  */
 function extractUserProblems(reportData?: any, conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []): string[] {
   const problems: string[] = []
+
+  // HIGHEST PRIORITY: Detect the specific concern selected during Stage A
+  const selectedConcern = detectSelectedConcern(conversationHistory)
+  if (selectedConcern) {
+    problems.push(selectedConcern)
+    console.log(`[ProductService] Detected selected concern: "${selectedConcern}"`)
+  }
 
   if (reportData) {
     // Extract from presenting concerns (primary issues)
@@ -107,7 +166,6 @@ function extractUserProblems(reportData?: any, conversationHistory: Array<{ role
 
     // Extract from client history (conditions mentioned)
     if (reportData.clientHistory && typeof reportData.clientHistory === 'string') {
-      // Extract key conditions/issues from history text
       const historyText = reportData.clientHistory
       const conditionKeywords = ['condition', 'diagnosis', 'symptom', 'issue', 'problem', 'disorder', 'disease', 'syndrome']
       const sentences = historyText.split(/[.!?]+/).filter((s: string) => s.trim().length > 15)
@@ -124,23 +182,21 @@ function extractUserProblems(reportData?: any, conversationHistory: Array<{ role
     }
   }
 
-  // If no report data, extract from conversation - user messages and assistant responses
+  // If no report data and no selected concern, extract from conversation
   if (problems.length === 0 && conversationHistory.length > 0) {
-    const fullText = conversationHistory
-      .map((msg) => (msg.role === 'user' ? `User: ${msg.content}` : `Assistant: ${msg.content}`))
-      .join('\n')
     const userMessages = conversationHistory
       .filter((msg) => msg.role === 'user')
       .map((msg) => msg.content)
       .join(' ')
     if (userMessages) {
-      // Extract key concerns from user messages (simple extraction)
+      // Use targeted health-concern keywords (removed overly broad words like 'need', 'want', 'back')
       const concernKeywords = [
         'problem', 'issue', 'concern', 'symptom', 'pain', 'difficulty', 'struggle',
-        'need', 'want', 'condition', 'diagnosis', 'suffering', 'experiencing',
-        'back', 'headache', 'stress', 'sleep', 'anxiety', 'digestion', 'energy', 'fatigue',
-        'mood', 'focus', 'nutrition', 'diet', 'routine', 'balance', 'habit', 'prevention',
-        'recovery', 'immunity', 'inflammation', 'weight', 'fitness', 'strength', 'hydration'
+        'condition', 'diagnosis', 'suffering', 'experiencing',
+        'headache', 'stress', 'sleep', 'anxiety', 'digestion', 'energy', 'fatigue',
+        'mood', 'focus', 'recovery', 'immunity', 'inflammation', 'weight', 'fitness', 'strength',
+        'stamina', 'performance', 'confidence', 'intimate', 'diabetes', 'blood sugar',
+        'tired', 'exhausted', 'weakness', 'endurance'
       ]
       const sentences = userMessages.split(/[.!?]+/).filter((s: string) => s.trim().length > 10)
       sentences.forEach((sentence: string) => {
@@ -148,7 +204,7 @@ function extractUserProblems(reportData?: any, conversationHistory: Array<{ role
           problems.push(sentence.trim())
         }
       })
-      // Also add longer user messages that describe their situation (if no keywords matched)
+      // Also add longer user messages if no keywords matched
       if (problems.length === 0 && userMessages.trim().length > 30) {
         problems.push(userMessages.slice(0, 300).trim())
       }
@@ -572,6 +628,107 @@ function normalizeForMatch(s: string): string {
 }
 
 /**
+ * Duration / pack-size patterns that distinguish meaningful product variants.
+ * Examples: "30 Day", "90-day", "15 days", "1 Month", "3 Months", "Pack of 2", "60 Capsules"
+ */
+const VARIANT_PATTERN = /\b(\d+)\s*[-–]?\s*(day|days|month|months|week|weeks|capsule|capsules|tablet|tablets|sachet|sachets|ml|gm|gram|grams|kg|pack|packs|bottle|bottles|strips?)\b/gi
+
+/**
+ * Extract the variant descriptor from a title (e.g. "30 day", "90 capsules").
+ * Returns the normalized variant string, or null if none found.
+ */
+function extractVariantDescriptor(title: string): string | null {
+  if (!title) return null
+  const matches = [...title.matchAll(VARIANT_PATTERN)]
+  if (matches.length === 0) return null
+  // Combine all variant matches into a single key (e.g. "30 day 60 capsules")
+  return matches.map(m => `${m[1]} ${m[2].toLowerCase()}`).join(' ').trim()
+}
+
+/**
+ * Get a deduplication key for a product title.
+ * Strips variant/duration suffixes so that the same base product name produces the same key,
+ * but different variants (30-day vs 90-day) will be differentiated by includeing the variant.
+ * Returns: { baseKey, fullKey } where baseKey ignores variants and fullKey includes them.
+ */
+function getDeduplicationKeys(title: string | null): { baseKey: string; fullKey: string } {
+  if (!title) return { baseKey: '', fullKey: '' }
+  const normalized = normalizeForMatch(title)
+  const variant = extractVariantDescriptor(title)
+  // Strip variant patterns and combo/bundle markers for the base key
+  const base = normalized
+    .replace(/\d+\s*(?:day|days|month|months|week|weeks|capsule|capsules|tablet|tablets|sachet|sachets|ml|gm|gram|grams|kg|pack|packs|bottle|bottles|strips?)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return {
+    baseKey: base,
+    fullKey: variant ? `${base}||${variant}` : base,
+  }
+}
+
+/**
+ * Check if two products are the same base product but different variants (duration/pack size).
+ */
+function isDurationOrPackVariant(titleA: string | null, titleB: string | null): boolean {
+  if (!titleA || !titleB) return false
+  const keysA = getDeduplicationKeys(titleA)
+  const keysB = getDeduplicationKeys(titleB)
+  // Same base product name
+  if (keysA.baseKey !== keysB.baseKey || keysA.baseKey.length < 3) return false
+  // But different full keys (meaning they have different variant descriptors)
+  return keysA.fullKey !== keysB.fullKey
+}
+
+/**
+ * Deduplicate a product list, keeping only one entry per base product name.
+ * Duration/pack-size variants (15-day vs 30-day vs 90-day) are preserved as separate entries.
+ * Combo/bundle products are always preserved (never deduped against individual products).
+ * When duplicates are found, the one with the higher relevance score (or the first one) is kept.
+ */
+function deduplicateProducts<T extends { title: string | null; url?: string; relevanceScore?: number }>(products: T[]): T[] {
+  if (products.length <= 1) return products
+
+  const seen = new Map<string, T>() // fullKey -> product
+  const result: T[] = []
+
+  for (const product of products) {
+    const title = product.title || ''
+    // Combo/bundle products are never deduped — always include them
+    if (isComboOrBundle(title)) {
+      result.push(product)
+      continue
+    }
+
+    const { fullKey } = getDeduplicationKeys(title)
+    if (!fullKey || fullKey.length < 3) {
+      result.push(product) // Can't deduplicate without a meaningful key
+      continue
+    }
+
+    const existing = seen.get(fullKey)
+    if (existing) {
+      // Duplicate found — keep the one with higher relevance score, or the first
+      const existingScore = (existing as any).relevanceScore ?? 0
+      const newScore = (product as any).relevanceScore ?? 0
+      if (newScore > existingScore) {
+        // Replace with the better-scored version
+        const idx = result.indexOf(existing)
+        if (idx >= 0) result[idx] = product
+        seen.set(fullKey, product)
+        console.log(`[ProductService] Dedup: replaced "${existing.title}" with higher-scored "${title}"`)
+      } else {
+        console.log(`[ProductService] Dedup: skipped duplicate "${title}" (already have "${existing.title}")`)
+      }
+    } else {
+      seen.set(fullKey, product)
+      result.push(product)
+    }
+  }
+
+  return result
+}
+
+/**
  * Calculate similarity between two condition/issue sets (0-1, where 1 is identical).
  */
 function calculateConditionSimilarity(conditions1: string[], conditions2: string[]): number {
@@ -832,19 +989,22 @@ async function matchProductsToProblems(
     .join('\n')
 
   try {
-    const prompt = `EVALUATE ALL PRODUCTS: Identify which products DIRECTLY address the user's identified problem. Show only those—no loosely related or generic products.
+    const prompt = `EVALUATE ALL PRODUCTS: Identify which products DIRECTLY and SPECIFICALLY address the user's identified problem. Show ONLY those—no loosely related, generic, or tangentially connected products.
 
-USER'S IDENTIFIED PROBLEM/CONCERN:
+USER'S SPECIFIC IDENTIFIED PROBLEM/CONCERN:
 ${problemsText}
 
 ALL AVAILABLE PRODUCTS (evaluate each one):
 ${productsList}
 
 CRITICAL RULES:
-1. Return ONLY products that directly address and clearly target the user's specific issue—not just related or tangential.
-2. Exclude any product that does not directly solve or treat the identified problem (e.g. wrong category, different concern, or generic).
-3. RelevanceScore: 0.0-1.0 (1.0 = directly addresses the problem, 0.85+ = strong direct match; exclude if <0.85).
-4. Only return products with relevanceScore >= 0.85—strict threshold so we display only products that directly address the identified problem.
+1. Return ONLY products that are specifically formulated, designed, or marketed to treat/address the user's EXACT concern.
+2. A product for "stamina" is NOT relevant if the user's concern is "low energy & fatigue" unless the product explicitly targets fatigue.
+3. A product for "intimate wellness" is NOT relevant if the user's concern is "diabetes / blood sugar".
+4. If a product addresses multiple concerns, it is relevant ONLY if the user's specific concern is one of them.
+5. RelevanceScore: 0.0-1.0 (1.0 = specifically designed for this exact problem; exclude if <0.85).
+6. Only return products with relevanceScore >= 0.85—strict threshold.
+7. When in doubt, EXCLUDE the product. It is better to show fewer, highly relevant products than many loosely related ones.
 
 Respond with ONLY a JSON array: [{"index":0,"relevanceScore":0.9},{"index":2,"relevanceScore":0.85}]`
 
@@ -903,7 +1063,7 @@ export function listProductsFromDocuments(
 
   // Require at least title and price so the catalog shows real products (image optional)
   const candidates = extracted.filter((p) => p.title && p.price) as Partial<ProductResult>[]
-  const results = candidates.slice(0, limit).map((p) => ({
+  const mapped = candidates.map((p) => ({
     id: p.id ?? '',
     title: p.title ?? null,
     description: p.description ?? null,
@@ -913,8 +1073,13 @@ export function listProductsFromDocuments(
     features: p.features ?? [],
   })) as ProductResult[]
 
+  // Deduplicate: same product from multiple docs should appear only once
+  // Duration/pack variants (30-day vs 90-day) are kept as separate entries
+  const deduped = deduplicateProducts(mapped)
+  const results = deduped.slice(0, limit)
+
   if (results.length > 0) {
-    console.log(`[ProductService] listProductsFromDocuments: returning ${results.length} products (title+price)`)
+    console.log(`[ProductService] listProductsFromDocuments: returning ${results.length} products (title+price, deduped from ${mapped.length})`)
   }
   return results
 }
@@ -988,20 +1153,23 @@ async function selectProductsByUserCondition(
     .join('\n')
 
   try {
-    const prompt = `EVALUATE ALL PRODUCTS: Identify which products DIRECTLY address the user's identified problem. Return only those—no loosely related or generic products.
+    const prompt = `EVALUATE ALL PRODUCTS: Identify which products are SPECIFICALLY formulated or designed to address the user's identified problem. Return ONLY those—exclude everything else.
 
-USER'S IDENTIFIED PROBLEM/CONDITION:
+USER'S SPECIFIC IDENTIFIED PROBLEM/CONDITION:
 ${conditionsText}
 
 ALL AVAILABLE PRODUCTS (evaluate each one):
 ${productsList}
 
 CRITICAL RULES:
-1. Return ONLY products that directly address and clearly target the user's specific issue—not just related or tangential.
-2. Exclude any product that does not directly solve or treat the identified problem (wrong category, different concern, or generic).
-3. Prefer combo/bundle/kit that directly targets their condition when relevant.
-4. RelevanceScore: 0.0-1.0 (1.0 = directly addresses the problem, 0.85+ = strong direct match; exclude if <0.85).
-5. Return at most 8-10 products—only those that directly address the identified problem.
+1. Return ONLY products that are specifically formulated, designed, or marketed to treat/address the user's EXACT concern.
+2. A product for "stamina" is NOT relevant if the user's concern is "low energy & fatigue" unless the product explicitly targets fatigue too.
+3. A product for "intimate wellness" is NOT relevant if the user's concern is "diabetes / blood sugar".
+4. If a product addresses multiple concerns, it is relevant ONLY if the user's specific concern is one of them.
+5. Prefer combo/bundle/kit that directly targets their condition when relevant.
+6. RelevanceScore: 0.0-1.0 (1.0 = specifically designed for this exact problem; exclude if <0.85).
+7. Return at most 5-6 products—only those that PRECISELY address the identified problem.
+8. When in doubt, EXCLUDE the product. It is better to show fewer, highly relevant products than many loosely related ones.
 
 Respond with ONLY a JSON array: [{"index":0,"relevanceScore":0.9},{"index":2,"relevanceScore":0.85}]`
 
@@ -1145,8 +1313,13 @@ export async function buildProductResults(
           : baseUrl
       return { ...p, url: productUrl || baseUrl }
     })
+    // Deduplicate before AI evaluation to avoid sending the same product twice
+    const dedupedExtracted = deduplicateProducts(
+      withUrl.filter((p) => p.title && (p.price || p.imageUrl)) as Array<Partial<ProductResult> & { title: string | null }>
+    )
+    console.log(`[ProductService] Full-catalog: ${allExtracted.length} extracted → ${dedupedExtracted.length} unique products for AI evaluation`)
     const selected = await selectProductsByUserCondition(
-      withUrl.filter((p) => p.title && (p.price || p.imageUrl)),
+      dedupedExtracted,
       userConditions,
       conversationSummary
     )
@@ -1402,8 +1575,15 @@ export async function buildProductResults(
     console.log(`[ProductService] ℹ️ Found ${finalCount} products (${finalCount - recommendedCount} more than recommended)`)
   }
 
-  // 6. Sort: combo/bundle products first, then individual products; within each, by relevance
-  const sorted = [...mergedResults].sort((a, b) => {
+  // 6. Final deduplication: Remove exact duplicates while preserving duration/combo variants
+  // This catches duplicates that slip through from different extraction paths (product pages + listing pages)
+  const dedupedResults = deduplicateProducts(mergedResults)
+  if (dedupedResults.length < mergedResults.length) {
+    console.log(`[ProductService] Final dedup: removed ${mergedResults.length - dedupedResults.length} duplicate(s), ${dedupedResults.length} unique products remain`)
+  }
+
+  // 7. Sort: combo/bundle products first, then individual products; within each, by relevance
+  const sorted = [...dedupedResults].sort((a, b) => {
     const aCombo = isComboOrBundle(a.title)
     const bCombo = isComboOrBundle(b.title)
     if (aCombo && !bCombo) return -1
