@@ -2491,8 +2491,6 @@ export default function AgentChat({
             .wai-chat.wai-mobile-active { display: flex !important; }
             .wai-products.wai-mobile-active { display: flex !important; }
 
-            .wai-product-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-
             /* Welcome screen: vertically centered, spacious layout */
             .wai-welcome {
               padding: 42px 24px; gap: 12px; flex: 1; min-height: 0;
@@ -2529,9 +2527,20 @@ export default function AgentChat({
               width: 38px; height: 38px;
             }
             .wai-input-hint { display: none; }
-          }
-          @media (max-width: 400px) {
-            .wai-product-grid { grid-template-columns: 1fr; }
+
+            /* Product grid: single column, larger cards on mobile */
+            .wai-product-grid { grid-template-columns: 1fr !important; gap: 14px; }
+            .wai-product-img { height: 160px !important; }
+            .wai-product-img-placeholder { height: 160px !important; font-size: 36px !important; }
+            .wai-product-body { padding: 12px 14px 14px !important; gap: 5px !important; }
+            .wai-product-title { font-size: 14px !important; -webkit-line-clamp: 3 !important; }
+            .wai-product-price { font-size: 15px !important; }
+            .wai-product-actions { gap: 8px !important; padding-top: 8px !important; }
+            .wai-view-btn { width: 40px !important; height: 40px !important; border-radius: 12px !important; }
+            .wai-cart-btn { height: 40px !important; font-size: 13px !important; border-radius: 12px !important; }
+            .wai-best-badge { font-size: 10px !important; padding: 4px 10px !important; }
+            .wai-product-tags { gap: 4px !important; }
+            .wai-product-scroll { padding: 12px 16px !important; }
           }
         `}</style>
         </div>

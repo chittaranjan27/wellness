@@ -133,11 +133,36 @@
 
         // Wrap in a container div: 75% centered within the target element
         const container = document.createElement('div');
+        container.className = 'wai-inline-container';
         container.style.cssText = `
       width: 75%;
       margin: 0 auto;
       display: block;
     `;
+        // Inject inline-mode responsive styles
+        if (!document.getElementById('wai-inline-responsive')) {
+          const rs = document.createElement('style');
+          rs.id = 'wai-inline-responsive';
+          rs.textContent = `
+            @media (max-width: 640px) {
+              .wai-inline-container {
+                width: 100% !important;
+                height: 100dvh !important;
+                position: fixed !important;
+                top: 0 !important; left: 0 !important;
+                margin: 0 !important;
+                z-index: 9990;
+              }
+              .wai-inline-container iframe {
+                height: 100% !important;
+                border-radius: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+              }
+            }
+          `;
+          document.head.appendChild(rs);
+        }
         container.appendChild(iframe);
         targetElement.appendChild(container);
         inlineIframe = iframe;
@@ -168,13 +193,14 @@
             }
             @media (max-width: 640px) {
               [id^="ai-agent-chat-window-"] {
+                top: 0 !important;
                 bottom: 0 !important;
                 right: 0 !important;
                 left: 0 !important;
                 width: 100vw !important;
-                height: 100vh !important;
+                height: 100dvh !important;
                 max-width: 100vw !important;
-                max-height: 100vh !important;
+                max-height: 100dvh !important;
                 border-radius: 0 !important;
                 border: none !important;
               }
