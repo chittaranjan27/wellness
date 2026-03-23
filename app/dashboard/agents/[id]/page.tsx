@@ -12,7 +12,6 @@ import DocumentList from '@/components/DocumentList'
 import AgentDetailClient from '@/components/AgentDetailClient'
 import EmbedCodeGenerator from '@/components/EmbedCodeGenerator'
 
-import CrawlerCard from '@/components/CrawlerCard'
 import Card from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
@@ -42,13 +41,7 @@ function IconKnowledge() {
     </svg>
   )
 }
-function IconCrawler() {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  )
-}
+
 function IconEmbed() {
   return (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -57,6 +50,13 @@ function IconEmbed() {
   )
 }
 
+function IconConversations() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+    </svg>
+  )
+}
 
 export default async function AgentDetailPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
@@ -98,17 +98,19 @@ export default async function AgentDetailPage({ params }: { params: { id: string
       badge: agent.documents.length,
       description: 'Uploaded documents',
     },
-    {
-      id: 'crawler',
-      label: 'Web Crawler',
-      icon: <IconCrawler />,
-      description: 'Import from websites',
-    },
+
     {
       id: 'embed',
       label: 'Embed Widget',
       icon: <IconEmbed />,
       description: 'Add to your website',
+    },
+    {
+      id: 'conversations',
+      label: 'Conversations',
+      icon: <IconConversations />,
+      badge: agent.chatMessages.length,
+      description: 'Review & analyze sessions',
     },
   ]
 
@@ -237,23 +239,13 @@ export default async function AgentDetailPage({ params }: { params: { id: string
           </Card>
         </section>
 
-        {/* ── 4. WEB CRAWLER ───────────────────────────────────────── */}
-        <section>
-          <SectionHeader
-            id="crawler"
-            step={4}
-            icon={<IconCrawler />}
-            title="Web Crawler"
-            description="Automatically import content from your website into the knowledge base"
-          />
-          <CrawlerCard agentId={agent.id} />
-        </section>
 
-        {/* ── 5. EMBED WIDGET ──────────────────────────────────────── */}
+
+        {/* ── 4. EMBED WIDGET ──────────────────────────────────────── */}
         <section>
           <SectionHeader
             id="embed"
-            step={5}
+            step={4}
             icon={<IconEmbed />}
             title="Embed Widget"
             description="Copy the snippet below to add this agent to any webpage"
@@ -261,6 +253,41 @@ export default async function AgentDetailPage({ params }: { params: { id: string
           <Card>
             <div className="p-6">
               <EmbedCodeGenerator agentId={agent.id} agentName={agent.name} />
+            </div>
+          </Card>
+        </section>
+
+        {/* ── 5. CONVERSATIONS ─────────────────────────────────────── */}
+        <section>
+          <SectionHeader
+            id="conversations"
+            step={5}
+            icon={<IconConversations />}
+            title="Conversations"
+            description="Review every consultation session, AI responses, and token usage"
+            action={
+              <Link href={`/dashboard/agents/${agent.id}/conversations`}>
+                <Button variant="outline" className="text-sm gap-1.5">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Open Full Review
+                </Button>
+              </Link>
+            }
+          />
+          <Card>
+            <div className="p-6 flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Total messages stored</p>
+                <p className="text-4xl font-bold text-gray-900 dark:text-gray-100 mt-1">{agent.chatMessages.length}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Open the full review to inspect each session, every AI turn, and token consumption.</p>
+              </div>
+              <Link href={`/dashboard/agents/${agent.id}/conversations`}>
+                <div className="h-16 w-16 rounded-2xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-800/40 transition-colors cursor-pointer">
+                  <IconConversations />
+                </div>
+              </Link>
             </div>
           </Card>
         </section>

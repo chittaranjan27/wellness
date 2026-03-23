@@ -98,6 +98,18 @@ export default function AgentChat({
   const [chatMode, setChatMode] = useState<'consultation' | 'offers' | 'voice' | null>(null);
   const chatModeRef = useRef(chatMode);
   const handleSendMessageRef = useRef<(msg: string) => void>(() => { });
+  // Voice consultation mode: auto-speak AI replies, auto-restart mic after TTS ends
+  const voiceModeRef = useRef(false);
+  const voiceAutoListenRef = useRef(false);
+  const [voiceCallActive, setVoiceCallActive] = useState(false);
+  // DB products for Offers & Products full-screen view
+  const [dbProducts, setDbProducts] = useState<Array<{
+    id: string; title: string; price: string; priceMin: string; priceMax: string;
+    supplyDays: number; capsuleCount: number; dailyDose: number;
+    market: string; funnelRole: string; discountEligible: boolean; discountPct: string | null;
+    imageUrl: string | null; url: string | null;
+  }>>([]);
+  const [dbProductsLoading, setDbProductsLoading] = useState(false);
 
   /**
    * Group products by base name so duration/combo variants appear together.
@@ -166,8 +178,15 @@ export default function AgentChat({
     handleSendMessage(`I need help with ${category.toLowerCase()}`);
   };
 
-  // Keep chatModeRef in sync with chatMode state
-  useEffect(() => { chatModeRef.current = chatMode; }, [chatMode]);
+  // Keep chatModeRef + voiceModeRef in sync with chatMode state
+  useEffect(() => {
+    chatModeRef.current = chatMode;
+    voiceModeRef.current = chatMode === 'voice';
+    if (chatMode !== 'voice') {
+      voiceAutoListenRef.current = false;
+      setVoiceCallActive(false);
+    }
+  }, [chatMode]);
 
   // Keep checkout link in sync with cart (no separate "Generate" step)
   useEffect(() => {
@@ -188,6 +207,23 @@ export default function AgentChat({
     }
   }, [isEmbedChat, languageConfirmed]);
 
+  // Fetch all products from DB when Offers & Products view is opened
+  useEffect(() => {
+    if (chatMode !== 'offers') return;
+    if (dbProducts.length > 0) return; // already loaded
+    setDbProductsLoading(true);
+    fetch('/api/products')
+      .then(res => res.json())
+      .then(data => {
+        setDbProducts(Array.isArray(data.products) ? data.products : []);
+      })
+      .catch(err => {
+        console.error('[Offers] Failed to fetch products:', err);
+        setDbProducts([]);
+      })
+      .finally(() => setDbProductsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatMode]);
 
 
   const addAssistantMessage = (content: string) => {
@@ -545,11 +581,11 @@ export default function AgentChat({
   // Warm greeting in the user's selected language — shown after language selection
   const getGreetingForNamePrompt = (languageCode: string): string => {
     const greetings: Record<string, string> = {
-      en: "Hello! Welcome to Wellness AI. I'm your personal wellness consultant — here to support your physical, mental, and lifestyle well-being.\n\nMay I know your name so I can address you personally?",
-      hi: "नमस्ते! Wellness AI में आपका स्वागत है। मैं आपका व्यक्तिगत वेलनेस सलाहकार हूँ — शारीरिक, मानसिक और जीवनशैली से जुड़ी समस्याओं में आपकी मदद के लिए यहाँ हूँ।\n\nकृपया अपना नाम बताएं ताकि मैं आपको व्यक्तिगत रूप से संबोधित कर सकूँ।",
-      ur: "السلام علیکم! Wellness AI میں خوش آمدید۔ میں آپ کا ذاتی ویلنیس مشیر ہوں — جسمانی، ذہنی اور طرزِ زندگی سے متعلق مسائل میں آپ کی مدد کے لیے حاضر ہوں۔\n\nبراہ کرم اپنا نام بتائیں تاکہ میں آپ سے ذاتی طور پر بات کر سکوں۔",
-      bn: "নমস্কার! Wellness AI-এ আপনাকে স্বাগতম। আমি আপনার ব্যক্তিগত ওয়েলনেস পরামর্শদাতা — শারীরিক, মানসিক এবং জীবনযাত্রার সুস্থতার বিষয়ে সাহায্য করতে এখানে আছি।\n\nঅনুগ্রহ করে আপনার নাম বলুন যাতে আমি আপনাকে ব্যক্তিগতভাবে সম্বোধন করতে পারি।",
-      ar: "مرحباً! أهلاً بك في Wellness AI. أنا مستشارك الشخصي للعافية — هنا لدعم صحتك الجسدية والنفسية وأسلوب حياتك الصحي.\n\nهل يمكنك إخباري باسمك لأتمكن من مخاطبتك بشكل شخصي؟",
+      en: "Hello! Welcome to Wellness AI. I'm your personal wellness consultant — here to support your physical, mental, and lifestyle well-being.",
+      hi: "नमस्ते! Wellness AI में आपका स्वागत है। मैं आपका व्यक्तिगत वेलनेस सलाहकार हूँ — शारीरिक, मानसिक और जीवनशैली से जुड़ी समस्याओं में आपकी मदद के लिए यहाँ हूँ।",
+      ur: "السلام علیکم! Wellness AI میں خوش آمدید۔ میں آپ کا ذاتی ویلنیس مشیر ہوں — جسمانی، ذہنی اور طرزِ زندگی سے متعلق مسائل میں آپ کی مدد کے لیے حاضر ہوں۔",
+      bn: "নমস্কার! Wellness AI-এ আপনাকে স্বাগতম। আমি আপনার ব্যক্তিগত ওয়েলনেস পরামর্শদাতা — শারীরিক, মানসিক এবং জীবনযাত্রার সুস্থতার বিষয়ে সাহায্য করতে এখানে আছি।",
+      ar: "مرحباً! أهلاً بك في Wellness AI. أنا مستشارك الشخصي للعافية — هنا لدعم صحتك الجسدية والنفسية وأسلوب حياتك الصحي.",
     };
     return greetings[languageCode] ?? greetings.en;
   };
@@ -1130,6 +1166,7 @@ export default function AgentChat({
     if (profileStage && profileStage !== "otp" && profileStage !== lastPromptStage) {
       if (profileStage === "name") {
         addAssistantMessage(getGreetingForNamePrompt(selectedLanguage));
+        promptForStage(profileStage);
       } else {
         promptForStage(profileStage);
       }
@@ -1223,6 +1260,7 @@ export default function AgentChat({
       recognitionRef.current.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         setIsListening(false);
+        voiceAutoListenRef.current = false; // pause auto-listen until AI responds
         void fetch("/api/voice/speech-to-text", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1267,6 +1305,89 @@ export default function AgentChat({
     );
     setLoading(true);
 
+    // ── VOICE MODE: completely separate free-flowing conversation ────────────
+    // Bypasses ALL consultation stages, profile intake, product logic
+    if (chatModeRef.current === 'voice') {
+      const voiceUserMsg: ChatMessageType = {
+        id: `voice-user-${Date.now()}`,
+        agentId,
+        sessionId: sessionId || null,
+        visitorId: visitorId || null,
+        role: 'user' as const,
+        content: userMessage,
+        createdAt: new Date(),
+        metadata: { source: 'voice' } as any,
+      };
+      setMessages(prev => [...prev, voiceUserMsg]);
+
+      try {
+        const history = messages
+          .filter(m => m.role === 'user' || m.role === 'assistant')
+          .slice(-20)
+          .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+
+        const res = await fetch('/api/voice/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: userMessage,
+            language: selectedLanguage,
+            conversationHistory: history,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Voice chat failed');
+
+        const voiceAiId = `voice-ai-${Date.now()}`;
+        const aiMsg: ChatMessageType = {
+          id: voiceAiId,
+          agentId,
+          sessionId: sessionId || null,
+          visitorId: visitorId || null,
+          role: 'assistant' as const,
+          content: data.response || '',
+          createdAt: new Date(),
+          metadata: { source: 'voice' } as any,
+        };
+        setMessages(prev => [...prev, aiMsg]);
+        setLoading(false);
+
+        // Auto-speak the AI response then re-enable mic
+        if (data.response && voiceModeRef.current) {
+          voiceAutoListenRef.current = true;
+          setSpeakingMessageId(voiceAiId);
+          setIsSpeaking(true);
+          const langInfo = getLanguageByCode(selectedLanguage) || getDefaultLanguage();
+          fetch('/api/voice/text-to-speech', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: data.response, language: selectedLanguage, voiceId: langInfo.elevenlabsVoiceId }),
+          }).then(r => r.blob()).then(blob => {
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            currentAudioRef.current = audio;
+            audio.onended = () => {
+              setIsSpeaking(false); setSpeakingMessageId(null);
+              URL.revokeObjectURL(url); currentAudioRef.current = null;
+              if (voiceAutoListenRef.current && recognitionRef.current && voiceModeRef.current) {
+                setTimeout(() => {
+                  if (voiceAutoListenRef.current && voiceModeRef.current) {
+                    try { recognitionRef.current.start(); setIsListening(true); } catch (e) { }
+                  }
+                }, 500);
+              }
+            };
+            audio.onerror = () => { setIsSpeaking(false); setSpeakingMessageId(null); URL.revokeObjectURL(url); currentAudioRef.current = null; };
+            audio.play().catch(() => { });
+          }).catch(() => { setIsSpeaking(false); setSpeakingMessageId(null); });
+        }
+      } catch (err) {
+        console.error('[Voice chat]', err);
+        setLoading(false);
+      }
+      return; // Always return — never fall through to consultation/profile logic
+    }
+    // ── END VOICE MODE ────────────────────────────────────────────────────────
 
     // Profile intake flow for embedded chats (only "name" at start)
     if (isEmbedChat && languageConfirmed && profileStage) {
@@ -1307,6 +1428,159 @@ export default function AgentChat({
     setMessages((prev) => [...prev, tempUserMessage]);
 
     try {
+      // ── DB-driven consultation mode ─────────────────────────────────────
+      if (isEmbedChat && chatModeRef.current === 'consultation') {
+        const consultBody: any = {
+          agentId,
+          message: userMessage,
+          language: selectedLanguage,
+        };
+        if (visitorId) consultBody.visitorId = visitorId;
+        if (sessionId) consultBody.sessionId = sessionId;
+        consultBody.conversationHistory = messages
+          .filter((m) => m.role === 'user' || m.role === 'assistant')
+          .slice(-20)
+          .map((m) => ({ role: m.role, content: m.content }));
+
+        const consultRes = await fetch('/api/db-consultation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(consultBody),
+        });
+        const consultData = await consultRes.json();
+        if (!consultRes.ok) throw new Error(consultData.error || 'DB consultation failed');
+
+        const timestamp = Date.now();
+
+        // ── Client-side option parsing (safety net) ──────────────────
+        // If backend didn't extract suggestions, try parsing them here
+        let finalContent = consultData.response || '';
+        let finalSuggestions = (consultData.suggestions && Array.isArray(consultData.suggestions) && consultData.suggestions.length > 0)
+          ? consultData.suggestions
+          : [];
+
+        // Strip [OPTIONS]...[/OPTIONS] from the visible text (in case backend missed it)
+        const optBracket = /\[OPTIONS\]\s*([\s\S]*?)\s*\[\/OPTIONS\]/i;
+        const optMatch = finalContent.match(optBracket);
+        if (optMatch) {
+          if (finalSuggestions.length === 0) {
+            finalSuggestions = optMatch[1].split('\n')
+              .map((l: string) => l.replace(/^[-•*\d.)\]\s]+/, '').trim())
+              .filter((l: string) => l.length > 0 && l.length < 120)
+              .map((l: string) => ({ label: l, prompt: l }));
+          }
+          finalContent = finalContent.replace(optBracket, '').trim();
+        }
+
+        // Strip "Options:" header + trailing numbered list from visible text
+        const optHeader = /\n\s*\*{0,2}Options\*{0,2}\s*:?\s*\n([\s\S]+)$/i;
+        const headerMatch = finalContent.match(optHeader);
+        if (headerMatch) {
+          if (finalSuggestions.length === 0) {
+            finalSuggestions = headerMatch[1].split('\n')
+              .map((l: string) => l.replace(/^[-•*\d.)\]\s]+/, '').replace(/^\*\*(.+?)\*\*$/, '$1').trim())
+              .filter((l: string) => l.length > 0 && l.length < 120)
+              .map((l: string) => ({ label: l, prompt: l }));
+          }
+          finalContent = finalContent.replace(optHeader, '').trim();
+        }
+
+        setMessages((prev) => {
+          const filtered = prev.filter((m) => m.id !== tempUserMessage.id);
+          const nextMessages: ChatMessageType[] = [
+            ...filtered,
+            { ...tempUserMessage, id: `user-${timestamp}` },
+          ];
+          nextMessages.push({
+            id: `assistant-${timestamp + 1}`,
+            agentId,
+            sessionId: sessionId || null,
+            visitorId: visitorId || null,
+            role: 'assistant' as const,
+            content: finalContent,
+            createdAt: new Date(),
+            metadata: {
+              source: 'db-consultation',
+              ...(consultData.product ? { productCard: consultData.product } : {}),
+              ...(finalSuggestions.length > 0 ? { suggestions: finalSuggestions } : {}),
+            } as any,
+          });
+          return nextMessages;
+        });
+
+        // ── Populate right-side product panel when a product is detected ──
+        if (consultData.product) {
+          // Fetch full product catalog (with images + URLs) and find the matching product
+          try {
+            const productsRes = await fetch('/api/products');
+            const productsData = await productsRes.json();
+            if (Array.isArray(productsData.products) && productsData.products.length > 0) {
+              const allProducts: ProductItem[] = productsData.products.map((p: any) => ({
+                id: p.id,
+                title: p.title,
+                description: p.description || null,
+                price: p.price,
+                url: p.url || '',
+                imageUrl: p.imageUrl || null,
+                features: p.features || [],
+              }));
+              // Find exact match by product name/id
+              const matchedProduct = allProducts.find(
+                (p) => p.id === consultData.product.id ||
+                       p.title.toLowerCase() === (consultData.product.title || '').toLowerCase()
+              );
+              if (matchedProduct) {
+                // Add the matched product to results (avoid duplicates)
+                setProductResults(prev => {
+                  const exists = prev.some(p => p.id === matchedProduct.id);
+                  return exists ? prev : [...prev, matchedProduct];
+                });
+              } else {
+                // No exact match — show all products as context recommendations
+                setProductResults(prev => prev.length > 0 ? prev : allProducts.slice(0, 6));
+              }
+            }
+          } catch (productErr) {
+            console.error('[Consultation] Failed to fetch products for panel:', productErr);
+          }
+        }
+
+        setLoading(false);
+
+        // Voice mode: auto-speak AI response then restart mic
+        if (voiceModeRef.current && consultData.response) {
+          voiceAutoListenRef.current = true;
+          const voiceTtsId = `assistant-voice-${Date.now()}`;
+          const langInfo = getLanguageByCode(selectedLanguage) || getDefaultLanguage();
+          fetch('/api/voice/text-to-speech', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: consultData.response, language: selectedLanguage, voiceId: langInfo.elevenlabsVoiceId }),
+          }).then(r => r.blob()).then(blob => {
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            currentAudioRef.current = audio;
+            setSpeakingMessageId(voiceTtsId);
+            setIsSpeaking(true);
+            audio.onended = () => {
+              setIsSpeaking(false); setSpeakingMessageId(null);
+              URL.revokeObjectURL(url); currentAudioRef.current = null;
+              if (voiceAutoListenRef.current && recognitionRef.current) {
+                setTimeout(() => {
+                  if (voiceAutoListenRef.current && recognitionRef.current) {
+                    try { recognitionRef.current.start(); setIsListening(true); } catch (e) { }
+                  }
+                }, 500);
+              }
+            };
+            audio.onerror = () => { setIsSpeaking(false); setSpeakingMessageId(null); URL.revokeObjectURL(url); currentAudioRef.current = null; };
+            audio.play().catch(() => { });
+          }).catch(e => console.error('Voice TTS error:', e));
+        }
+        return;
+      }
+
+      // ── Standard chat endpoint ────────────────────────────────────────────
       const requestBody: any = {
         agentId,
         message: userMessage,
@@ -1467,6 +1741,50 @@ export default function AgentChat({
     // If starting voice from the hub, enter voice consultation mode
     if (!chatMode && languageConfirmed) {
       setChatMode('voice');
+      // Speak a welcome greeting, then start listening
+      const greetingText: Record<string, string> = {
+        en: "Hello! I'm your Wellness AI specialist. Please tell me about your health concern and I'll help you find the right solution.",
+        hi: "नमस्ते! मैं आपका वेलनेस विशेषज्ञ हूँ। कृपया अपनी स्वास्थ्य समस्या बताएं।",
+        ur: "السلام علیکم! میں آپ کا ویلنیس ماہر ہوں۔ براہ کرم اپنی صحت کی تکلیف بتائیں۔",
+        bn: "নমস্কার! আমি আপনার ওয়েলনেস বিশেষজ্ঞ। আপনার স্বাস্থ্য সমস্যা বলুন।",
+        ar: "مرحباً! أنا مستشارك لدى Wellness AI. يرجى إخباري بمشكلتك الصحية.",
+      };
+      const greetMsg = greetingText[selectedLanguage] ?? greetingText.en;
+      // Add greeting as assistant message
+      const greetId = `assistant-voice-greet-${Date.now()}`;
+      setMessages(prev => [...prev, {
+        id: greetId, agentId,
+        sessionId: sessionId || null, visitorId: visitorId || null,
+        role: 'assistant' as const, content: greetMsg,
+        createdAt: new Date(), metadata: { source: 'voice-greeting' } as any,
+      }]);
+      // Speak greeting via TTS, then start listening automatically
+      const langInfo2 = getLanguageByCode(selectedLanguage) || getDefaultLanguage();
+      voiceAutoListenRef.current = true;
+      setIsSpeaking(true); setSpeakingMessageId(greetId);
+      fetch('/api/voice/text-to-speech', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: greetMsg, language: selectedLanguage, voiceId: langInfo2.elevenlabsVoiceId }),
+      }).then(r => r.blob()).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        currentAudioRef.current = audio;
+        audio.onended = () => {
+          setIsSpeaking(false); setSpeakingMessageId(null);
+          URL.revokeObjectURL(url); currentAudioRef.current = null;
+          if (voiceAutoListenRef.current && recognitionRef.current) {
+            setTimeout(() => {
+              if (voiceAutoListenRef.current && recognitionRef.current) {
+                try { recognitionRef.current.start(); setIsListening(true); } catch (e) { }
+              }
+            }, 400);
+          }
+        };
+        audio.onerror = () => { setIsSpeaking(false); setSpeakingMessageId(null); URL.revokeObjectURL(url); currentAudioRef.current = null; };
+        audio.play().catch(() => { });
+      }).catch(() => { setIsSpeaking(false); setSpeakingMessageId(null); });
+      return; // don't start mic yet — wait for TTS greeting to finish
     }
 
     if (isListening) {
@@ -1559,6 +1877,14 @@ export default function AgentChat({
         setSpeakingMessageId(null);
         URL.revokeObjectURL(audioUrl);
         currentAudioRef.current = null;
+        // Voice mode: auto-restart mic after AI finishes speaking
+        if (voiceAutoListenRef.current && recognitionRef.current) {
+          setTimeout(() => {
+            if (voiceAutoListenRef.current && recognitionRef.current) {
+              try { recognitionRef.current.start(); setIsListening(true); } catch (e) { console.log('mic restart', e); }
+            }
+          }, 500);
+        }
       };
 
       // Handle audio errors
@@ -1756,40 +2082,67 @@ export default function AgentChat({
           {languageConfirmed && !chatMode && (
             <div className="wai-hub">
               <div className="wai-hub-inner">
-                {/* Mic center */}
-                <div className="wai-hub-mic-area">
-                  <button type="button" onClick={handleVoiceInput} disabled={loading}
-                    className={`wai-hub-mic${isListening ? ' wai-hub-mic-active' : ''}`}>
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      {isListening
-                        ? <><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></>
-                        : <><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></>}
-                    </svg>
-                  </button>
-                  <p className="wai-hub-mic-label">{isListening ? 'Listening — speak now...' : 'Tap to speak with our specialist'}</p>
+
+                {/* Hub heading */}
+                <div className="wai-hub-heading">
+                  <div className="wai-hub-logo-dot" />
+                  <p className="wai-hub-tagline">How can we help you today?</p>
                 </div>
 
-                {/* Two action buttons */}
-                <div className="wai-hub-actions">
-                  <button type="button" className="wai-hub-btn wai-hub-offers"
-                    onClick={() => {
-                      setChatMode('offers');
-                      setMobileTab('picks');
-                      handleSendMessage('Show me all available offers and products');
-                    }}>
-                    <span className="wai-hub-btn-icon">🎁</span>
-                    <span className="wai-hub-btn-title">Offers & Products</span>
-                    <span className="wai-hub-btn-desc">Browse all wellness products</span>
-                  </button>
-                  <button type="button" className="wai-hub-btn wai-hub-consult"
-                    onClick={() => setChatMode('consultation')}>
-                    <span className="wai-hub-btn-icon">
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>
-                    </span>
-                    <span className="wai-hub-btn-title">Consultation</span>
-                    <span className="wai-hub-btn-desc">Get personalized wellness advice</span>
-                  </button>
-                </div>
+                {/* ── Card 1: Consultation ── */}
+                <button
+                  type="button"
+                  className="wai-hub-card wai-hub-card-consult"
+                  onClick={() => setChatMode('consultation')}
+                >
+                  <div className="wai-hub-card-icon-wrap wai-hub-card-icon-consult">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+                    </svg>
+                  </div>
+                  <div className="wai-hub-card-body">
+                    <p className="wai-hub-card-title">Personalized Consultation</p>
+                    <p className="wai-hub-card-desc">Talk to our AI wellness specialist and get a tailored health plan just for you.</p>
+                    <ul className="wai-hub-card-perks">
+                      <li>✦ Free personalized assessment</li>
+                      <li>✦ Ayurvedic supplement guidance</li>
+                      <li>✦ Instant product recommendations</li>
+                    </ul>
+                  </div>
+                  <div className="wai-hub-card-arrow">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+
+                {/* ── Card 2: Offers & Products ── */}
+                <button
+                  type="button"
+                  className="wai-hub-card wai-hub-card-offers"
+                  onClick={() => { setChatMode('offers'); setMobileTab('picks'); }}
+                >
+                  <div className="wai-hub-card-icon-wrap wai-hub-card-icon-offers">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 01-8 0" />
+                    </svg>
+                  </div>
+                  <div className="wai-hub-card-body">
+                    <p className="wai-hub-card-title">Offers &amp; Products</p>
+                    <p className="wai-hub-card-desc">Browse our full range of Ayurvedic wellness products and exclusive offers.</p>
+                    <ul className="wai-hub-card-perks">
+                      <li>✦ Premium Ayurvedic formulas</li>
+                      <li>✦ Bundle discounts available</li>
+                      <li>✦ Fast, trusted delivery</li>
+                    </ul>
+                  </div>
+                  <div className="wai-hub-card-arrow">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </button>
+
               </div>
             </div>
           )}
@@ -1875,29 +2228,73 @@ export default function AgentChat({
                   </div>
                 </div>
 
-                {/* ─ Voice mic area (center-bottom) ─ */}
+                {/* ─ Voice call control zone ─ */}
                 <div className="wai-voice-mic-zone">
-                  {/* Live transcription preview */}
-                  {isListening && (
-                    <div className="wai-voice-live">
-                      <span className="wai-voice-live-dot" />
-                      <span className="wai-voice-live-text">Listening...</span>
-                    </div>
-                  )}
-                  <button type="button" onClick={handleVoiceInput} disabled={loading}
-                    className={`wai-voice-mic-btn${isListening ? ' wai-voice-mic-active' : ''}`}>
-                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      {isListening
-                        ? <><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></>
-                        : <><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></>}
-                    </svg>
-                  </button>
+
+                  {/* Status indicator: AI speaking waveform OR listening or idle */}
+                  <div className="wai-voice-status-row">
+                    {isSpeaking && (
+                      <div className="wai-voice-speaking">
+                        <span className="wai-wave-bar" style={{ animationDelay: '0ms' }} />
+                        <span className="wai-wave-bar" style={{ animationDelay: '80ms' }} />
+                        <span className="wai-wave-bar" style={{ animationDelay: '160ms' }} />
+                        <span className="wai-wave-bar" style={{ animationDelay: '240ms' }} />
+                        <span className="wai-wave-bar" style={{ animationDelay: '320ms' }} />
+                        <span className="wai-speaking-label">Specialist is speaking...</span>
+                      </div>
+                    )}
+                    {isListening && !isSpeaking && (
+                      <div className="wai-voice-live">
+                        <span className="wai-voice-live-dot" />
+                        <span className="wai-voice-live-text">Listening to you...</span>
+                      </div>
+                    )}
+                    {loading && !isSpeaking && !isListening && (
+                      <div className="wai-voice-live" style={{ background: 'rgba(20,184,166,0.08)', borderColor: 'rgba(20,184,166,0.2)' }}>
+                        <span className="wai-voice-live-dot" style={{ background: '#14b8a6', animation: 'wai-voice-blink 0.8s ease-in-out infinite' }} />
+                        <span className="wai-voice-live-text" style={{ color: '#0f766e' }}>Thinking...</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Main mic button */}
+                  <div className="wai-voice-controls">
+                    <button type="button"
+                      onClick={() => { voiceAutoListenRef.current = true; handleVoiceInput(); }}
+                      disabled={loading || isSpeaking}
+                      className={`wai-voice-mic-btn${isListening ? ' wai-voice-mic-active' : ''}${isSpeaking ? ' wai-voice-mic-speaking' : ''}`}>
+                      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        {isListening
+                          ? <><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></>
+                          : <><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></>}
+                      </svg>
+                    </button>
+
+                    {/* End call button */}
+                    <button type="button" className="wai-voice-end-call"
+                      title="End call"
+                      onClick={() => {
+                        voiceAutoListenRef.current = false;
+                        setVoiceCallActive(false);
+                        if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch (e) { } }
+                        const a = currentAudioRef.current; if (a) { a.pause(); a.currentTime = 0; }
+                        setIsListening(false); setIsSpeaking(false);
+                        setChatMode('consultation');
+                      }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10.68 13.31a16 16 0 003.41 2.6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7 2 2 0 011.72 2v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.42 19.42 0 013.43 9.19 19.79 19.79 0 01.36 .55a2 2 0 012-.27h3a2 2 0 011.72 2c.12.96.34 1.9.7 2.81A2 2 0 017.68 8z" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                      </svg>
+                    </button>
+                  </div>
+
                   <p className="wai-voice-mic-hint">
-                    {isListening ? 'Tap to stop' : 'Tap to speak'}
+                    {isSpeaking ? 'AI is responding...' : isListening ? 'Tap to stop' : 'Tap microphone to speak'}
                   </p>
-                  {/* Switch to text input */}
+
+                  {/* Switch to text */}
                   <button type="button" className="wai-voice-switch-text"
-                    onClick={() => setChatMode('consultation')}>
+                    onClick={() => { voiceAutoListenRef.current = false; setChatMode('consultation'); }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
                     </svg>
@@ -1907,8 +2304,117 @@ export default function AgentChat({
               </div>
             )}
 
+            {/* ══ FULL-SCREEN OFFERS MODE: Products only, no chat ══ */}
+            {chatMode === 'offers' && (
+              <div className="wai-offers-fullscreen">
+                {/* Header bar */}
+                <div className="wai-offers-header">
+                  <button type="button" className="wai-offers-back" onClick={() => { setChatMode(null); setDbProducts([]); }}
+                    title="Back">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M15 18l-6-6 6-6" />
+                    </svg>
+                  </button>
+                  <div className="wai-offers-header-text">
+                    <p className="wai-offers-title">🎁 Offers &amp; Products</p>
+                    <p className="wai-offers-sub">{dbProductsLoading ? 'Loading...' : `${dbProducts.length} product${dbProducts.length !== 1 ? 's' : ''} available`}</p>
+                  </div>
+                </div>
+
+                {/* Product grid / loading / empty */}
+                <div className="wai-offers-scroll">
+                  {dbProductsLoading ? (
+                    <div className="wai-offers-loading">
+                      <div className="wai-offers-spinner" />
+                      <p>Loading products…</p>
+                    </div>
+                  ) : dbProducts.length === 0 ? (
+                    <div className="wai-offers-empty">
+                      <span style={{ fontSize: '36px' }}>🌿</span>
+                      <p>No products found.</p>
+                    </div>
+                  ) : (
+                    <div className="wai-offers-grid">
+                      {dbProducts.map((p) => {
+                        const funnelColors: Record<string, { bg: string; color: string }> = {
+                          hero: { bg: 'rgba(20,184,166,0.12)', color: '#0d7060' },
+                          upsell: { bg: 'rgba(139,92,246,0.1)', color: '#6d28d9' },
+                          cross_sell: { bg: 'rgba(249,115,22,0.1)', color: '#c2410c' },
+                        };
+                        const roleStyle = funnelColors[p.funnelRole] ?? { bg: 'rgba(107,114,128,0.1)', color: '#374151' };
+
+                        return (
+                          <div key={p.id} className="wai-offers-card">
+                            {/* Product image */}
+                            <div className="wai-offers-card-icon">
+                              {p.imageUrl ? (
+                                <img
+                                  src={p.imageUrl}
+                                  alt={p.title}
+                                  className="wai-offers-card-img"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                    const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                                    if (fallback) fallback.style.display = 'flex';
+                                  }}
+                                />
+                              ) : null}
+                              <span
+                                className="wai-offers-card-icon-fallback"
+                                style={{ display: p.imageUrl ? 'none' : 'flex' }}
+                              >🌿</span>
+                            </div>
+
+                            <div className="wai-offers-card-body">
+                              <p className="wai-offers-card-title">{p.title}</p>
+
+                              {/* Tags row */}
+                              <div className="wai-offers-card-tags">
+                                <span className="wai-offers-tag" style={{ background: roleStyle.bg, color: roleStyle.color }}>
+                                  {p.funnelRole.replace('_', ' ')}
+                                </span>
+                                <span className="wai-offers-tag" style={{ background: 'rgba(20,184,166,0.1)', color: '#0d7060' }}>
+                                  {p.supplyDays}-day supply
+                                </span>
+                                <span className="wai-offers-tag" style={{ background: 'rgba(59,130,246,0.1)', color: '#1d4ed8' }}>
+                                  {p.capsuleCount} caps
+                                </span>
+                              </div>
+
+                              {/* Dosage */}
+                              <p className="wai-offers-card-meta">
+                                {p.dailyDose} capsule{p.dailyDose !== 1 ? 's' : ''}/day · {p.market}
+                              </p>
+
+                              {/* Stars */}
+                              <div className="wai-product-stars" style={{ margin: '6px 0 4px' }}>
+                                {[1, 2, 3, 4, 5].map(s => (
+                                  <svg key={s} width="11" height="11" viewBox="0 0 24 24"
+                                    fill={s <= 4 ? '#f59e0b' : 'none'} stroke="#f59e0b" strokeWidth="1.5">
+                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                  </svg>
+                                ))}
+                              </div>
+
+                              {/* Price */}
+                              <p className="wai-offers-card-price">{p.price}</p>
+
+                              {/* Discount badge */}
+                              {p.discountEligible && p.discountPct && (
+                                <span className="wai-offers-discount">🏷 {p.discountPct}% off on bundle</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* ══ LEFT PANEL: Chat (text consultation & language selection) ══ */}
-            {chatMode !== 'voice' && (
+            {chatMode !== 'voice' && chatMode !== 'offers' && (
               <div className={`wai-chat${mobileTab === 'chat' ? ' wai-mobile-active' : ''}`}
                 style={!chatMode ? { width: '100%', borderRight: 'none' } : undefined}>
 
@@ -1977,6 +2483,7 @@ export default function AgentChat({
                                   </button>
                                 </div>
                               )}
+
                               <span className={`wai-time${isUser ? ' wai-time-user' : ''}`}>
                                 {formatTime(message.createdAt)}
                               </span>
@@ -2039,8 +2546,8 @@ export default function AgentChat({
               </div>
             )}
 
-            {/* ══ RIGHT PANEL: Products (hidden until chatMode is set) ══ */}
-            {chatMode && (
+            {/* ══ RIGHT PANEL: Products (shown in consultation + voice modes) ══ */}
+            {chatMode && chatMode !== 'offers' && (
               <div className={`wai-products${mobileTab === 'picks' ? ' wai-mobile-active' : ''}`}>
                 {productResults.length === 0 ? (
                   /* Empty state */
@@ -2530,6 +3037,49 @@ export default function AgentChat({
             font-size: 12px; font-weight: 600; color: #dc2626;
           }
 
+          /* Voice call controls row */
+          .wai-voice-controls {
+            display: flex; align-items: center; gap: 20px;
+          }
+          .wai-voice-status-row {
+            min-height: 36px; display: flex; align-items: center; justify-content: center;
+          }
+          .wai-voice-speaking {
+            display: flex; align-items: center; gap: 6px;
+            padding: 6px 16px; border-radius: 20px;
+            background: rgba(20,184,166,0.08); border: 1px solid rgba(20,184,166,0.2);
+          }
+          .wai-wave-bar {
+            display: inline-block; width: 3px; border-radius: 3px;
+            background: #14b8a6;
+            animation: wai-wave 1s ease-in-out infinite;
+          }
+          @keyframes wai-wave {
+            0%, 100% { height: 6px; opacity: 0.5; }
+            50% { height: 18px; opacity: 1; }
+          }
+          .wai-wave-bar:nth-child(1) { animation-delay: 0ms; }
+          .wai-wave-bar:nth-child(2) { animation-delay: 80ms; }
+          .wai-wave-bar:nth-child(3) { animation-delay: 160ms; }
+          .wai-wave-bar:nth-child(4) { animation-delay: 240ms; }
+          .wai-wave-bar:nth-child(5) { animation-delay: 320ms; }
+          .wai-speaking-label {
+            font-size: 11px; font-weight: 600; color: #0f766e; margin-left: 4px;
+          }
+          .wai-voice-mic-speaking {
+            opacity: 0.4; cursor: not-allowed !important;
+          }
+          /* End call button */
+          .wai-voice-end-call {
+            width: 54px; height: 54px; border-radius: 50%;
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            border: none; color: #fff; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 16px rgba(220,38,38,0.35);
+            transition: all 0.2s;
+          }
+          .wai-voice-end-call:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(220,38,38,0.5); }
+
           /* Switch to text button */
           .wai-voice-switch-text {
             display: flex; align-items: center; gap: 6px;
@@ -2706,88 +3256,216 @@ export default function AgentChat({
             50% { box-shadow: 0 0 0 18px rgba(239,68,68,0.06), 0 6px 20px rgba(239,68,68,0.15); }
           }
 
+          /* -- Offers full-screen ---------------------------------- */
+          .wai-offers-fullscreen {
+            flex: 1; display: flex; flex-direction: column;
+            background: linear-gradient(to bottom, #f0fdf8 0%, #fff 100%);
+            overflow: hidden; min-width: 0;
+          }
+          .wai-offers-header {
+            display: flex; align-items: center; gap: 12px;
+            padding: 14px 18px 12px;
+            background: rgba(255,255,255,0.85);
+            border-bottom: 1px solid #e0f2ee;
+            flex-shrink: 0;
+            backdrop-filter: blur(8px);
+          }
+          .wai-offers-back {
+            display: flex; align-items: center; justify-content: center;
+            width: 32px; height: 32px; border-radius: 50%;
+            border: 1.5px solid #d1d5db; background: #fff;
+            color: #6b7280; cursor: pointer;
+            transition: all 0.15s; flex-shrink: 0;
+          }
+          .wai-offers-back:hover { border-color: #14b8a6; color: #0f766e; background: rgba(20,184,166,0.07); }
+          .wai-offers-header-text { flex: 1; }
+          .wai-offers-title { margin: 0; font-size: 14px; font-weight: 800; color: #111827; }
+          .wai-offers-sub { margin: 2px 0 0; font-size: 11px; color: #6b7280; }
+          .wai-offers-scroll {
+            flex: 1; overflow-y: auto;
+            padding: 16px;
+          }
+          .wai-offers-scroll::-webkit-scrollbar { width: 3px; }
+          .wai-offers-scroll::-webkit-scrollbar-thumb { background: #b2e4df; border-radius: 4px; }
+          .wai-offers-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+            align-content: start;
+          }
+          .wai-offers-card {
+            background: #fff; border-radius: 16px;
+            border: 1.5px solid #e4f5f3;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            transition: all 0.2s;
+          }
+          .wai-offers-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); border-color: #b2e4df; }
+          .wai-offers-card-icon {
+            width: 100%; height: 160px;
+            background: linear-gradient(135deg, #e0f7f5 0%, #ccfbf1 100%);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 30px; flex-shrink: 0; overflow: hidden; position: relative;
+          }
+          .wai-offers-card-img {
+            width: 100%; height: 100%;
+            object-fit: cover; object-position: center;
+            display: block;
+          }
+          .wai-offers-card-icon-fallback {
+            width: 100%; height: 100%;
+            align-items: center; justify-content: center;
+            font-size: 42px; position: absolute; top: 0; left: 0;
+          }
+          .wai-offers-card-body {
+            padding: 10px 12px 12px;
+            display: flex; flex-direction: column; flex: 1; gap: 4px;
+          }
+          .wai-offers-card-title {
+            margin: 0; font-size: 12px; font-weight: 700; color: #111827;
+            line-height: 1.35;
+            display: -webkit-box; -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical; overflow: hidden;
+          }
+          .wai-offers-card-tags { display: flex; flex-wrap: wrap; gap: 3px; margin: 2px 0; }
+          .wai-offers-tag {
+            padding: 2px 8px; border-radius: 20px;
+            font-size: 10px; font-weight: 600;
+            text-transform: capitalize;
+          }
+          .wai-offers-card-meta { margin: 2px 0; font-size: 10.5px; color: #6b7280; }
+          .wai-offers-card-price {
+            margin: 4px 0 0; font-size: 14px; font-weight: 800;
+            color: #0f766e; letter-spacing: -0.01em;
+          }
+          .wai-offers-discount {
+            display: inline-block; margin-top: 2px;
+            padding: 2px 8px; border-radius: 20px;
+            background: rgba(251,191,36,0.15); color: #b45309;
+            font-size: 10px; font-weight: 700;
+          }
+          .wai-offers-loading {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 14px; padding: 40px 20px;
+            color: #6b7280; font-size: 13px;
+          }
+          .wai-offers-spinner {
+            width: 32px; height: 32px; border: 3px solid #e0f2ee;
+            border-top-color: #14b8a6; border-radius: 50%;
+            animation: wai-spin 0.8s linear infinite;
+          }
+          .wai-offers-empty {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 10px; padding: 40px 20px;
+            color: #6b7280; font-size: 13px; text-align: center;
+          }
+          @media (max-width: 640px) {
+            .wai-offers-grid { grid-template-columns: 1fr !important; gap: 14px; }
+            .wai-offers-card-icon { height: 120px !important; font-size: 40px !important; }
+            .wai-offers-card-title { font-size: 14px !important; }
+            .wai-offers-card-price { font-size: 16px !important; }
+            .wai-offers-scroll { padding: 12px 14px !important; }
+            .wai-hub-card { padding: 14px 12px !important; }
+            .wai-hub-card-icon-wrap { width: 44px !important; height: 44px !important; }
+            .wai-hub-card-title { font-size: 13px !important; }
+          }
+
           /* ── Landing Hub ──────────────────────────────── */
           .wai-hub {
             flex: 1; display: flex; align-items: center; justify-content: center;
-            background: linear-gradient(to bottom, #f0fdf9 0%, #fff 60%);
-            padding: 24px 16px; overflow-y: auto;
+            background: linear-gradient(160deg, #f0fdf9 0%, #f8fafc 50%, #fdf4ff 100%);
+            padding: 20px 16px; overflow-y: auto;
           }
           .wai-hub-inner {
+            display: flex; flex-direction: column; align-items: stretch;
+            gap: 12px; max-width: 400px; width: 100%;
+          }
+
+          /* Hub heading */
+          .wai-hub-heading {
             display: flex; flex-direction: column; align-items: center;
-            gap: 28px; max-width: 360px; width: 100%; text-align: center;
+            gap: 6px; margin-bottom: 6px; text-align: center;
+          }
+          .wai-hub-logo-dot {
+            width: 36px; height: 4px; border-radius: 4px;
+            background: linear-gradient(90deg, #14b8a6, #8b5cf6);
+            margin-bottom: 2px;
+          }
+          .wai-hub-tagline {
+            margin: 0; font-size: 15px; font-weight: 700; color: #111827;
+            letter-spacing: -0.01em;
           }
 
-          /* Hub mic */
-          .wai-hub-mic-area {
-            display: flex; flex-direction: column; align-items: center; gap: 10px;
+          /* Hub hero cards */
+          .wai-hub-card {
+            display: flex; align-items: center; gap: 14px;
+            padding: 18px 16px; border-radius: 20px;
+            border: none; text-align: left; cursor: pointer;
+            transition: all 0.22s cubic-bezier(.34,1.56,.64,1);
+            position: relative; overflow: hidden; width: 100%;
           }
-          .wai-hub-mic {
-            width: 72px; height: 72px; border-radius: 50%;
-            background: linear-gradient(135deg, #14b8a6 0%, #0f766e 100%);
-            border: none; color: #fff; cursor: pointer;
+          .wai-hub-card::before {
+            content: ''; position: absolute; inset: 0;
+            background: rgba(255,255,255,0.18);
+            opacity: 0; transition: opacity 0.2s;
+          }
+          .wai-hub-card:hover { transform: translateY(-3px) scale(1.01); }
+          .wai-hub-card:hover::before { opacity: 1; }
+          .wai-hub-card:active { transform: scale(0.98); }
+
+          /* Consultation card */
+          .wai-hub-card-consult {
+            background: linear-gradient(135deg, #0f766e 0%, #14b8a6 60%, #2dd4bf 100%);
+            box-shadow: 0 8px 28px rgba(20,184,166,0.35), 0 2px 8px rgba(0,0,0,0.06);
+          }
+
+          /* Offers card */
+          .wai-hub-card-offers {
+            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 55%, #a78bfa 100%);
+            box-shadow: 0 8px 28px rgba(124,58,237,0.32), 0 2px 8px rgba(0,0,0,0.06);
+          }
+
+          /* Card icon wrap */
+          .wai-hub-card-icon-wrap {
+            flex-shrink: 0; width: 52px; height: 52px; border-radius: 14px;
             display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 6px 24px rgba(20,184,166,0.3);
-            transition: all 0.25s;
-            animation: wai-hub-pulse 2.5s ease-in-out infinite;
           }
-          .wai-hub-mic:hover:not(:disabled) { transform: scale(1.1); }
-          .wai-hub-mic:disabled { opacity: 0.5; cursor: not-allowed; animation: none; }
-          .wai-hub-mic-active {
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
-            animation: wai-hub-pulse-active 1.5s ease-in-out infinite !important;
+          .wai-hub-card-icon-consult {
+            background: rgba(255,255,255,0.22); color: #fff;
           }
-          .wai-hub-mic-label {
-            margin: 0; font-size: 12px; color: #6b7280; font-weight: 500;
-            line-height: 1.5; max-width: 200px;
+          .wai-hub-card-icon-offers {
+            background: rgba(255,255,255,0.22); color: #fff;
           }
 
-          /* Hub action buttons */
-          .wai-hub-actions {
-            display: flex; gap: 12px; width: 100%;
+          /* Card body */
+          .wai-hub-card-body {
+            flex: 1; min-width: 0;
           }
-          .wai-hub-btn {
-            flex: 1; display: flex; flex-direction: column; align-items: center;
-            gap: 6px; padding: 18px 12px; border-radius: 16px;
-            border: 1.5px solid #e5e7eb; background: #fff;
-            cursor: pointer; transition: all 0.2s;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+          .wai-hub-card-title {
+            margin: 0 0 3px; font-size: 14px; font-weight: 800;
+            color: #fff; letter-spacing: -0.01em;
           }
-          .wai-hub-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+          .wai-hub-card-desc {
+            margin: 0 0 8px; font-size: 11px; color: rgba(255,255,255,0.82);
+            line-height: 1.5;
           }
-          .wai-hub-btn-icon {
-            font-size: 24px; line-height: 1;
-            display: flex; align-items: center; justify-content: center;
-            width: 48px; height: 48px; border-radius: 50%;
+          .wai-hub-card-perks {
+            margin: 0; padding: 0; list-style: none;
+            display: flex; flex-direction: column; gap: 2px;
           }
-          .wai-hub-btn-title {
-            font-size: 13px; font-weight: 700; color: #111827;
-          }
-          .wai-hub-btn-desc {
-            font-size: 10.5px; color: #6b7280; line-height: 1.4;
+          .wai-hub-card-perks li {
+            font-size: 10px; color: rgba(255,255,255,0.72); font-weight: 600;
           }
 
-          /* Offers variant */
-          .wai-hub-offers {
-            border-color: rgba(251,191,36,0.4);
-            background: linear-gradient(to bottom, #fffbeb, #fff);
+          /* Arrow */
+          .wai-hub-card-arrow {
+            flex-shrink: 0; color: rgba(255,255,255,0.7);
+            transition: transform 0.2s;
           }
-          .wai-hub-offers:hover { border-color: #f59e0b; }
-          .wai-hub-offers .wai-hub-btn-icon {
-            background: rgba(251,191,36,0.15);
-          }
-
-          /* Consultation variant */
-          .wai-hub-consult {
-            border-color: rgba(20,184,166,0.3);
-            background: linear-gradient(to bottom, #f0fdf9, #fff);
-          }
-          .wai-hub-consult:hover { border-color: #14b8a6; }
-          .wai-hub-consult .wai-hub-btn-icon {
-            background: rgba(20,184,166,0.12);
-            color: #0f766e;
-          }
+          .wai-hub-card:hover .wai-hub-card-arrow { transform: translateX(4px); }
 
           /* ── Cart summary ────────────────────────────── */
           .wai-cart-summary {

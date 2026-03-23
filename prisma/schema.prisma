@@ -83,7 +83,6 @@ model Agent {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   documents   Document[]
   chatMessages ChatMessage[]
-  crawlJobs   CrawlJob[]
   analytics   Analytics[]
   leads       Lead[]
   settings    AgentSettings?
@@ -238,27 +237,6 @@ model ChatMessage {
   @@map("chat_messages")
 }
 
-// Crawl Job - tracks website crawling jobs
-model CrawlJob {
-  id          String    @id @default(uuid())
-  agentId     String
-  url         String    // Starting URL
-  status      String    @default("pending") // pending, crawling, completed, failed
-  pagesCrawled Int     @default(0)
-  pagesTotal  Int      @default(0)
-  chunksCreated Int    @default(0)
-  errorMessage String? @db.Text
-  metadata    Json?     // Additional metadata (depth, maxDepth, etc.)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  // Relations
-  agent       Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
-
-  @@index([agentId])
-  @@index([status])
-  @@map("crawl_jobs")
-}
 
 // Analytics - tracks usage and performance per agent
 model Analytics {
