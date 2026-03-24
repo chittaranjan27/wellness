@@ -118,17 +118,17 @@
       height: 580px;
       border: none;
       border-radius: 16px;
-      box-shadow: 0 4px 32px rgba(0,0,0,0.10), 0 0 20px rgba(20,184,166,0.15), 0 0 40px rgba(20,184,166,0.06);
-      background: #fff;
+      box-shadow: 0 4px 32px rgba(0,0,0,0.10), 0 0 20px rgba(227,83,83,0.15), 0 0 40px rgba(227,83,83,0.06);
+      background: #FAF5F2;
       overflow: hidden;
-      border: 1.5px solid rgba(20,184,166,0.18);
+      border: 1.5px solid rgba(227,83,83,0.18);
       transition: box-shadow 0.4s ease;
     `;
         iframe.addEventListener('mouseenter', () => {
-          iframe.style.boxShadow = '0 4px 32px rgba(0,0,0,0.10), 0 0 28px rgba(20,184,166,0.22), 0 0 56px rgba(20,184,166,0.10)';
+          iframe.style.boxShadow = '0 4px 32px rgba(0,0,0,0.10), 0 0 28px rgba(227,83,83,0.22), 0 0 56px rgba(227,83,83,0.10)';
         });
         iframe.addEventListener('mouseleave', () => {
-          iframe.style.boxShadow = '0 4px 32px rgba(0,0,0,0.10), 0 0 20px rgba(20,184,166,0.15), 0 0 40px rgba(20,184,166,0.06)';
+          iframe.style.boxShadow = '0 4px 32px rgba(0,0,0,0.10), 0 0 20px rgba(227,83,83,0.15), 0 0 40px rgba(227,83,83,0.06)';
         });
 
         // Wrap in a container div: 75% centered within the target element
@@ -144,20 +144,23 @@
           const rs = document.createElement('style');
           rs.id = 'wai-inline-responsive';
           rs.textContent = `
-            @media (max-width: 640px) {
+            .wai-inline-container {
+              box-sizing: border-box;
+            }
+            @media (max-width: 768px) {
               .wai-inline-container {
                 width: 100% !important;
-                height: 100dvh !important;
-                position: fixed !important;
-                top: 0 !important; left: 0 !important;
                 margin: 0 !important;
-                z-index: 9990;
               }
               .wai-inline-container iframe {
-                height: 100% !important;
-                border-radius: 0 !important;
-                box-shadow: none !important;
-                border: none !important;
+                height: 500px !important;
+                border-radius: 12px !important;
+              }
+            }
+            @media (max-width: 480px) {
+              .wai-inline-container iframe {
+                height: 460px !important;
+                border-radius: 8px !important;
               }
             }
           `;
@@ -188,8 +191,8 @@
           glowStyle.id = 'wai-widget-glow-styles';
           glowStyle.textContent = `
             @keyframes wai-btn-glow {
-              0%, 100% { box-shadow: 0 4px 14px rgba(20,184,166,0.35), 0 0 20px rgba(20,184,166,0.2); }
-              50% { box-shadow: 0 4px 20px rgba(20,184,166,0.5), 0 0 32px rgba(20,184,166,0.3); }
+              0%, 100% { box-shadow: 0 4px 14px rgba(227,83,83,0.4), 0 0 20px rgba(227,83,83,0.2); }
+              50% { box-shadow: 0 4px 20px rgba(227,83,83,0.6), 0 0 32px rgba(227,83,83,0.3); }
             }
             @media (max-width: 640px) {
               [id^="ai-agent-chat-window-"] {
@@ -218,11 +221,11 @@
       width: 60px;
       height: 60px;
       border-radius: 50%;
-      background:#14b8a6;
+      background: #E35353;
       color: white;
       border: none;
       cursor: pointer;
-      box-shadow: 0 4px 14px rgba(20,184,166,0.35), 0 0 20px rgba(20,184,166,0.2);
+      box-shadow: 0 4px 14px rgba(227,83,83,0.4), 0 0 20px rgba(227,83,83,0.2);
       z-index: 9999;
       display: flex;
       align-items: center;
@@ -251,10 +254,10 @@
         height: 600px;
         max-width: calc(100vw - 40px);
         max-height: calc(100vh - 120px);
-        background: white;
+        background: #FAF5F2;
         border-radius: 14px;
-        border: 1.5px solid rgba(20,184,166,0.2);
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15), 0 0 24px rgba(20,184,166,0.18), 0 0 48px rgba(20,184,166,0.07);
+        border: 1.5px solid rgba(227,83,83,0.2);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.15), 0 0 24px rgba(227,83,83,0.18), 0 0 48px rgba(227,83,83,0.07);
         z-index: 9998;
         display: none;
         flex-direction: column;
