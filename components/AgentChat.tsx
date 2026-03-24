@@ -2673,6 +2673,7 @@ export default function AgentChat({
 
           {/* ══ Styles ══ */}
           <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Dosis:wght@400;600;700;800&family=Montserrat:wght@400;500;600;700;800&display=swap');
           /* ── Outer frame: fills the full iframe (75% centering is done by widget.js) ── */
           .wai-frame {
             width: 100%;
@@ -2681,8 +2682,8 @@ export default function AgentChat({
             display: flex;
             flex-direction: column;
             border-radius: 16px;
-            border: 1.5px solid rgba(20,184,166,0.18);
-            box-shadow: 0 0 20px rgba(20,184,166,0.12), 0 0 40px rgba(20,184,166,0.05);
+            border: 1.5px solid rgba(227,83,83,0.18);
+            box-shadow: 0 0 20px rgba(227,83,83,0.12), 0 0 40px rgba(227,83,83,0.05);
           }
 
           /* ── Root layout ─────────────────────────────── */
@@ -2692,9 +2693,9 @@ export default function AgentChat({
             flex: 1;
             height: 100%;
             overflow: hidden;
-            background: #fff;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
-            color: #111827;
+            background: #FAF5F2;
+            font-family: 'Montserrat', 'Dosis', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: #2F3336;
           }
 
           /* ── Panels container (row on desktop, column on mobile) ── */
@@ -2712,8 +2713,8 @@ export default function AgentChat({
             flex-direction: column;
             width: 45%;
             min-width: 260px;
-            border-right: 1px solid #e8f4f1;
-            background: #fff;
+            border-right: 1px solid #f0e4dd;
+            background: #FAF5F2;
             flex-shrink: 0;
           }
 
@@ -2723,9 +2724,9 @@ export default function AgentChat({
             align-items: center;
             gap: 10px;
             padding: 12px 14px 10px;
-            background: linear-gradient(135deg, #0f766e 0%, #0d9488 40%, #14b8a6 100%);
+            background: linear-gradient(135deg, #1A1A1A 0%, #2F3336 60%, #414141 100%);
             flex-shrink: 0;
-            box-shadow: 0 2px 12px rgba(15,118,110,0.25), 0 4px 24px rgba(20,184,166,0.15);
+            box-shadow: 0 2px 12px rgba(26,26,26,0.35), 0 4px 24px rgba(227,83,83,0.15);
           }
           .wai-avatar {
             width: 40px; height: 40px; border-radius: 50%;
@@ -2739,7 +2740,7 @@ export default function AgentChat({
             position: absolute; bottom: 1px; right: 1px;
             width: 10px; height: 10px;
             background: #22c55e; border-radius: 50%;
-            border: 2px solid #0f766e;
+            border: 2px solid #1A1A1A;
             box-shadow: 0 0 0 2px rgba(34,197,94,0.3), 0 0 8px rgba(34,197,94,0.4);
           }
           .wai-agent-name {
@@ -2756,10 +2757,10 @@ export default function AgentChat({
           .wai-messages {
             flex: 1; overflow-y: auto; min-height: 0;
             padding: 14px 12px;
-            background: linear-gradient(to bottom, #f0fdf9 0%, #f8fffe 30%, #fff 100%);
+            background: linear-gradient(to bottom, #FAF5F2 0%, #fdf8f5 30%, #FFF8F5 100%);
           }
           .wai-messages::-webkit-scrollbar { width: 3px; }
-          .wai-messages::-webkit-scrollbar-thumb { background: #b2e4df; border-radius: 4px; }
+          .wai-messages::-webkit-scrollbar-thumb { background: #e8c9be; border-radius: 4px; }
           .wai-messages-inner { display: flex; flex-direction: column; gap: 12px; }
 
           /* ── Message rows ────────────────────────────── */
@@ -2767,9 +2768,9 @@ export default function AgentChat({
           .wai-msg-user-row { justify-content: flex-end; }
           .wai-msg-avatar {
             width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
-            background: linear-gradient(135deg, #14b8a6 0%, #0f766e 100%);
+            background: linear-gradient(135deg, #E35353 0%, #c43a3a 100%);
             display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 2px 6px rgba(20,184,166,0.3);
+            box-shadow: 0 2px 6px rgba(227,83,83,0.3);
           }
 
           /* ── Bubbles ─────────────────────────────────── */
@@ -2780,14 +2781,14 @@ export default function AgentChat({
           }
           .wai-bubble-ai {
             background: #fff;
-            border: 1px solid #e4f5f3;
+            border: 1px solid #f0e4dd;
             border-bottom-left-radius: 4px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06), 0 0 6px rgba(20,184,166,0.06);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06), 0 0 6px rgba(227,83,83,0.04);
           }
           .wai-bubble-user {
-            background: linear-gradient(135deg, #134e4a 0%, #0f766e 100%);
+            background: linear-gradient(135deg, #1A1A1A 0%, #E35353 100%);
             border-bottom-right-radius: 4px;
-            box-shadow: 0 3px 12px rgba(19,78,74,0.3);
+            box-shadow: 0 3px 12px rgba(227,83,83,0.3);
           }
           .wai-bubble-text {
             margin: 0; font-size: 12.5px; line-height: 1.6;
@@ -2801,7 +2802,7 @@ export default function AgentChat({
           /* ── Typing indicator ────────────────────────── */
           .wai-typing { display: flex; align-items: center; gap: 5px; padding: 12px 16px; }
           .wai-dot {
-            width: 7px; height: 7px; border-radius: 50%; background: #14b8a6;
+            width: 7px; height: 7px; border-radius: 50%; background: #E35353;
             animation: wai-bounce 1.3s ease-in-out infinite;
           }
           @keyframes wai-bounce { 0%,80%,100%{transform:translateY(0);opacity:0.5} 40%{transform:translateY(-6px);opacity:1} }
@@ -2810,11 +2811,11 @@ export default function AgentChat({
           .wai-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
           .wai-chip {
             padding: 5px 12px; border-radius: 20px;
-            border: 1.5px solid #a7f3d0; background: #f0fdf4;
-            color: #065f46; font-size: 11.5px; font-weight: 600;
+            border: 1.5px solid #f0cdc3; background: #fdf0ec;
+            color: #1A1A1A; font-size: 11.5px; font-weight: 600;
             cursor: pointer; transition: all 0.15s;
           }
-          .wai-chip:hover { background: #14b8a6; border-color: #14b8a6; color: #fff; transform: translateY(-1px); }
+          .wai-chip:hover { background: #E35353; border-color: #E35353; color: #fff; transform: translateY(-1px); }
           .wai-chip-muted { border-color: #d1d5db; background: #f9fafb; color: #6b7280; }
           .wai-chip-muted:hover { background: #6b7280; border-color: #6b7280; color: #fff; }
 
@@ -2826,14 +2827,14 @@ export default function AgentChat({
           }
           .wai-welcome-icon {
             width: 76px; height: 76px; border-radius: 50%;
-            background: linear-gradient(135deg, #e0f7f5 0%, #ccfbf1 100%);
+            background: linear-gradient(135deg, #fce8e4 0%, #f5d0c8 100%);
             display: flex; align-items: center; justify-content: center;
-            margin-bottom: 8px; box-shadow: 0 4px 16px rgba(20,184,166,0.15);
+            margin-bottom: 8px; box-shadow: 0 4px 16px rgba(227,83,83,0.15);
           }
           .wai-welcome-icon svg {
             width: 40px; height: 40px;
           }
-          .wai-welcome-title { margin: 0; font-size: 24px; font-weight: 800; color: #111827; }
+          .wai-welcome-title { margin: 0; font-size: 24px; font-weight: 800; color: #1A1A1A; font-family: 'Dosis', 'Montserrat', sans-serif; text-transform: uppercase; letter-spacing: 0.05em; }
           .wai-welcome-sub { margin: 0; font-size: 15px; color: #6b7280; line-height: 1.6; }
           .wai-lang-grid { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin-top: 16px; }
           .wai-lang-btn {
@@ -2843,22 +2844,22 @@ export default function AgentChat({
             cursor: pointer; transition: all 0.18s;
             min-width: 100px;
           }
-          .wai-lang-btn:hover { border-color: #14b8a6; background: rgba(20,184,166,0.07); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(20,184,166,0.15); }
+          .wai-lang-btn:hover { border-color: #E35353; background: rgba(227,83,83,0.06); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(227,83,83,0.15); }
           .wai-lang-greeting { font-size: 18px; font-weight: 700; color: #111827; }
           .wai-lang-name { font-size: 12px; color: #9ca3af; font-weight: 400; }
 
           /* ── Input bar ───────────────────────────────── */
           .wai-input-bar {
             flex-shrink: 0; padding: 10px 12px 12px;
-            border-top: 1px solid #e8f4f1; background: #fff;
+            border-top: 1px solid #f0e4dd; background: #FAF5F2;
           }
           .wai-input-wrap {
             display: flex; align-items: center; gap: 6px;
-            background: #f8fffe; border: 1.5px solid #b2e4df;
+            background: #fff; border: 1.5px solid #e8c9be;
             border-radius: 28px; padding: 6px 6px 6px 12px;
             transition: border-color 0.15s, box-shadow 0.15s;
           }
-          .wai-input-wrap:focus-within { border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12), 0 0 12px rgba(20,184,166,0.08); }
+          .wai-input-wrap:focus-within { border-color: #E35353; box-shadow: 0 0 0 3px rgba(227,83,83,0.12), 0 0 12px rgba(227,83,83,0.08); }
           .wai-input {
             flex: 1; min-width: 0; border: none; outline: none;
             background: transparent; font-size: 12.5px; color: #374151;
@@ -2870,17 +2871,17 @@ export default function AgentChat({
             display: flex; align-items: center; flex-shrink: 0;
             transition: color 0.15s;
           }
-          .wai-mic-btn:hover { color: #14b8a6; }
+          .wai-mic-btn:hover { color: #E35353; }
           .wai-mic-active { color: #ef4444 !important; }
           .wai-send-btn {
             width: 34px; height: 34px; border-radius: 50%;
-            background: linear-gradient(135deg, #14b8a6 0%, #0f766e 100%);
+            background: linear-gradient(135deg, #E35353 0%, #c43a3a 100%);
             border: none; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
             flex-shrink: 0; transition: all 0.15s;
-            box-shadow: 0 2px 8px rgba(20,184,166,0.35);
+            box-shadow: 0 2px 8px rgba(227,83,83,0.35);
           }
-          .wai-send-btn:hover:not(:disabled) { transform: scale(1.08); box-shadow: 0 4px 14px rgba(20,184,166,0.45); }
+          .wai-send-btn:hover:not(:disabled) { transform: scale(1.08); box-shadow: 0 4px 14px rgba(227,83,83,0.45); }
           .wai-send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
           .wai-input-hint { margin: 5px 0 0; text-align: center; font-size: 9.5px; color: #d1d5db; letter-spacing: 0.02em; }
 
@@ -2888,16 +2889,16 @@ export default function AgentChat({
           .wai-voice-panel {
             display: flex; flex-direction: column;
             width: 45%; min-width: 260px;
-            border-right: 1px solid #e8f4f1;
-            background: #fff; flex-shrink: 0;
+            border-right: 1px solid #f0e4dd;
+            background: #FAF5F2; flex-shrink: 0;
           }
           .wai-voice-transcript {
             flex: 1; overflow-y: auto; min-height: 0;
             padding: 14px 12px;
-            background: linear-gradient(to bottom, #f0fdf9 0%, #f8fffe 30%, #fff 100%);
+            background: linear-gradient(to bottom, #FAF5F2 0%, #fdf8f5 30%, #FFF8F5 100%);
           }
           .wai-voice-transcript::-webkit-scrollbar { width: 3px; }
-          .wai-voice-transcript::-webkit-scrollbar-thumb { background: #b2e4df; border-radius: 4px; }
+          .wai-voice-transcript::-webkit-scrollbar-thumb { background: #e8c9be; border-radius: 4px; }
 
           /* Empty state */
           .wai-voice-empty {
@@ -2907,9 +2908,9 @@ export default function AgentChat({
           }
           .wai-voice-empty-icon {
             width: 56px; height: 56px; border-radius: 50%;
-            background: linear-gradient(135deg, #e0f7f5 0%, #ccfbf1 100%);
+            background: linear-gradient(135deg, #fce8e4 0%, #f5d0c8 100%);
             display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 4px 16px rgba(20,184,166,0.15);
+            box-shadow: 0 4px 16px rgba(227,83,83,0.15);
           }
           .wai-voice-empty-text {
             margin: 0; font-size: 14px; font-weight: 600; color: #374151;
@@ -2923,19 +2924,19 @@ export default function AgentChat({
             flex-shrink: 0; display: flex; flex-direction: column;
             align-items: center; gap: 12px;
             padding: 24px 16px 20px;
-            background: linear-gradient(to top, #f0fdf9 0%, #fff 100%);
-            border-top: 1px solid #e8f4f1;
+            background: linear-gradient(to top, #FAF5F2 0%, #fff 100%);
+            border-top: 1px solid #f0e4dd;
           }
           .wai-voice-mic-btn {
             width: 80px; height: 80px; border-radius: 50%;
-            background: linear-gradient(135deg, #14b8a6 0%, #0f766e 100%);
+            background: linear-gradient(135deg, #E35353 0%, #c43a3a 100%);
             border: none; color: #fff; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 6px 28px rgba(20,184,166,0.35), 0 0 0 6px rgba(20,184,166,0.08);
+            box-shadow: 0 6px 28px rgba(227,83,83,0.35), 0 0 0 6px rgba(227,83,83,0.08);
             transition: all 0.25s;
             animation: wai-voice-breathe 3s ease-in-out infinite;
           }
-          .wai-voice-mic-btn:hover:not(:disabled) { transform: scale(1.08); box-shadow: 0 8px 32px rgba(20,184,166,0.45), 0 0 0 8px rgba(20,184,166,0.12); }
+          .wai-voice-mic-btn:hover:not(:disabled) { transform: scale(1.08); box-shadow: 0 8px 32px rgba(227,83,83,0.45), 0 0 0 8px rgba(227,83,83,0.12); }
           .wai-voice-mic-btn:disabled { opacity: 0.5; cursor: not-allowed; animation: none; }
           .wai-voice-mic-active {
             background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
@@ -2971,11 +2972,11 @@ export default function AgentChat({
           .wai-voice-speaking {
             display: flex; align-items: center; gap: 6px;
             padding: 6px 16px; border-radius: 20px;
-            background: rgba(20,184,166,0.08); border: 1px solid rgba(20,184,166,0.2);
+            background: rgba(227,83,83,0.08); border: 1px solid rgba(227,83,83,0.2);
           }
           .wai-wave-bar {
             display: inline-block; width: 3px; border-radius: 3px;
-            background: #14b8a6;
+            background: #E35353;
             animation: wai-wave 1s ease-in-out infinite;
           }
           @keyframes wai-wave {
@@ -2988,7 +2989,7 @@ export default function AgentChat({
           .wai-wave-bar:nth-child(4) { animation-delay: 240ms; }
           .wai-wave-bar:nth-child(5) { animation-delay: 320ms; }
           .wai-speaking-label {
-            font-size: 11px; font-weight: 600; color: #0f766e; margin-left: 4px;
+            font-size: 11px; font-weight: 600; color: #E35353; margin-left: 4px;
           }
           .wai-voice-mic-speaking {
             opacity: 0.4; cursor: not-allowed !important;
@@ -3013,14 +3014,14 @@ export default function AgentChat({
             cursor: pointer; transition: all 0.15s;
           }
           .wai-voice-switch-text:hover {
-            border-color: #14b8a6; color: #0f766e;
-            background: rgba(20,184,166,0.06);
+            border-color: #E35353; color: #E35353;
+            background: rgba(227,83,83,0.06);
           }
 
           /* Voice panel animations */
           @keyframes wai-voice-breathe {
-            0%, 100% { box-shadow: 0 6px 28px rgba(20,184,166,0.35), 0 0 0 6px rgba(20,184,166,0.08); }
-            50% { box-shadow: 0 6px 28px rgba(20,184,166,0.45), 0 0 0 12px rgba(20,184,166,0.06); }
+            0%, 100% { box-shadow: 0 6px 28px rgba(227,83,83,0.35), 0 0 0 6px rgba(227,83,83,0.08); }
+            50% { box-shadow: 0 6px 28px rgba(227,83,83,0.45), 0 0 0 12px rgba(227,83,83,0.06); }
           }
           @keyframes wai-voice-pulse {
             0%, 100% { box-shadow: 0 6px 28px rgba(239,68,68,0.35), 0 0 0 6px rgba(239,68,68,0.12); }
@@ -3034,11 +3035,11 @@ export default function AgentChat({
           /* ── Products panel ──────────────────────────── */
           .wai-products {
             flex: 1; display: flex; flex-direction: column;
-            overflow: hidden; background: linear-gradient(to bottom, #f0fdf8 0%, #f8fffe 100%);
+            overflow: hidden; background: linear-gradient(to bottom, #FAF5F2 0%, #FFF8F5 100%);
             min-width: 0;
           }
           .wai-panel-header {
-            padding: 14px 18px 12px; border-bottom: 1px solid #e0f2ee;
+            padding: 14px 18px 12px; border-bottom: 1px solid #f0ddd5;
             background: rgba(255,255,255,0.7); flex-shrink: 0;
             backdrop-filter: blur(8px);
           }
@@ -3048,8 +3049,8 @@ export default function AgentChat({
             display: inline-flex; align-items: center; gap: 4px;
             padding: 2px 9px; border-radius: 20px;
             font-size: 10px; font-weight: 700;
-            color: #0f766e; background: rgba(20,184,166,0.12);
-            border: 1px solid rgba(20,184,166,0.25);
+            color: #c43a3a; background: rgba(227,83,83,0.1);
+            border: 1px solid rgba(227,83,83,0.2);
             text-transform: uppercase; letter-spacing: 0.05em;
           }
           .wai-badge-dot { width: 5px; height: 5px; border-radius: 50%; background: #22c55e; }
@@ -3075,33 +3076,33 @@ export default function AgentChat({
             font-size: 11.5px; font-weight: 600; color: #374151;
             cursor: pointer; transition: all 0.18s;
           }
-          .wai-empty-chip:hover { border-color: #14b8a6; color: #0f766e; background: rgba(20,184,166,0.07); transform: translateY(-1px); }
+          .wai-empty-chip:hover { border-color: #E35353; color: #c43a3a; background: rgba(227,83,83,0.07); transform: translateY(-1px); }
 
           /* ── Product grid ────────────────────────────── */
           .wai-product-scroll { flex: 1; overflow-y: auto; padding: 14px; }
           .wai-product-scroll::-webkit-scrollbar { width: 3px; }
-          .wai-product-scroll::-webkit-scrollbar-thumb { background: #b2e4df; border-radius: 4px; }
+          .wai-product-scroll::-webkit-scrollbar-thumb { background: #e8c9be; border-radius: 4px; }
           .wai-product-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; align-content: start; }
           .wai-product-card {
             background: #fff; border-radius: 16px; overflow: hidden;
-            border: 1px solid #e4f5f3; display: flex; flex-direction: column;
+            border: 1px solid #f0ddd5; display: flex; flex-direction: column;
             box-shadow: 0 2px 12px rgba(0,0,0,0.06); transition: all 0.2s;
           }
-          .wai-product-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); border-color: #b2e4df; }
+          .wai-product-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(227,83,83,0.12); border-color: #e8b8ae; }
           .wai-product-img-wrap { position: relative; flex-shrink: 0; }
           .wai-product-img { width: 100%; height: 90px; object-fit: cover; display: block; }
           .wai-product-img-placeholder {
             width: 100%; height: 90px;
-            background: linear-gradient(135deg, #e0f7f5 0%, #ccfbf1 100%);
+            background: linear-gradient(135deg, #fce8e4 0%, #f5d0c8 100%);
             display: flex; align-items: center; justify-content: center;
             font-size: 28px;
           }
           .wai-best-badge {
             position: absolute; top: 8px; left: 8px;
             padding: 3px 9px; border-radius: 20px;
-            background: #134e4a; color: #fff;
+            background: #E35353; color: #fff;
             font-size: 9px; font-weight: 700;
-            letter-spacing: 0.02em; box-shadow: 0 2px 6px rgba(19,78,74,0.3);
+            letter-spacing: 0.02em; box-shadow: 0 2px 6px rgba(227,83,83,0.3);
           }
           .wai-product-body {
             padding: 8px 10px 10px; display: flex;
@@ -3123,41 +3124,41 @@ export default function AgentChat({
             display: flex; flex-direction: column; align-items: center; gap: 1px;
           }
           .wai-variant-chip:hover {
-            border-color: #14b8a6; background: rgba(20,184,166,0.06); color: #0f766e;
+            border-color: #E35353; background: rgba(227,83,83,0.06); color: #c43a3a;
           }
           .wai-variant-active {
-            border-color: #14b8a6; background: rgba(20,184,166,0.12); color: #0f766e;
-            box-shadow: 0 0 0 1px rgba(20,184,166,0.2);
+            border-color: #E35353; background: rgba(227,83,83,0.1); color: #c43a3a;
+            box-shadow: 0 0 0 1px rgba(227,83,83,0.2);
           }
           .wai-variant-price {
-            font-size: 9px; font-weight: 700; color: #0f766e; opacity: 0.8;
+            font-size: 9px; font-weight: 700; color: #c43a3a; opacity: 0.8;
           }
           .wai-product-desc { display: none; }
           .wai-product-stars { display: none; }
-          .wai-product-price { margin: 2px 0 0; font-size: 13px; font-weight: 800; color: #0f766e; letter-spacing: -0.01em; }
+          .wai-product-price { margin: 2px 0 0; font-size: 13px; font-weight: 800; color: #E35353; letter-spacing: -0.01em; }
           .wai-product-actions { display: flex; gap: 6px; align-items: center; margin-top: auto; padding-top: 4px; }
           .wai-view-btn {
             width: 34px; height: 34px; border-radius: 10px;
-            border: 1.5px solid #e0f2ee; background: #f8fffe;
+            border: 1.5px solid #f0ddd5; background: #FAF5F2;
             display: flex; align-items: center; justify-content: center;
             color: #6b7280; text-decoration: none; flex-shrink: 0;
             transition: all 0.15s;
           }
-          .wai-view-btn:hover { border-color: #14b8a6; color: #0f766e; background: rgba(20,184,166,0.08); }
+          .wai-view-btn:hover { border-color: #E35353; color: #E35353; background: rgba(227,83,83,0.06); }
           .wai-cart-btn {
             flex: 1; height: 34px; border-radius: 10px; border: none;
-            background: linear-gradient(135deg, #134e4a 0%, #0f766e 100%);
+            background: linear-gradient(135deg, #1A1A1A 0%, #E35353 100%);
             color: #fff; font-size: 11.5px; font-weight: 700;
             display: flex; align-items: center; justify-content: center; gap: 5px;
             cursor: pointer; transition: all 0.15s;
-            box-shadow: 0 2px 8px rgba(19,78,74,0.25);
+            box-shadow: 0 2px 8px rgba(227,83,83,0.3);
             letter-spacing: 0.01em;
           }
-          .wai-cart-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(19,78,74,0.35); }
+          .wai-cart-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(227,83,83,0.45); }
           .wai-cart-added { background: #f3f4f6 !important; color: #6b7280 !important; box-shadow: none !important; cursor: not-allowed !important; }
-          .wai-cart-adding { background: rgba(20,184,166,0.15) !important; color: #0f766e !important; box-shadow: none !important; cursor: wait !important; }
+          .wai-cart-adding { background: rgba(227,83,83,0.12) !important; color: #c43a3a !important; box-shadow: none !important; cursor: wait !important; }
           .wai-spinner {
-            width: 11px; height: 11px; border: 2px solid #0f766e;
+            width: 11px; height: 11px; border: 2px solid #E35353;
             border-top-color: transparent; border-radius: 50%;
             display: inline-block; animation: wai-spin 0.7s linear infinite;
           }
@@ -3172,8 +3173,8 @@ export default function AgentChat({
             to { opacity: 1; transform: translateY(0); }
           }
           @keyframes wai-hub-pulse {
-            0%, 100% { box-shadow: 0 0 0 8px rgba(20,184,166,0.15), 0 6px 24px rgba(20,184,166,0.3); }
-            50% { box-shadow: 0 0 0 16px rgba(20,184,166,0.06), 0 6px 24px rgba(20,184,166,0.15); }
+            0%, 100% { box-shadow: 0 0 0 8px rgba(227,83,83,0.15), 0 6px 24px rgba(227,83,83,0.3); }
+            50% { box-shadow: 0 0 0 16px rgba(227,83,83,0.06), 0 6px 24px rgba(227,83,83,0.15); }
           }
           @keyframes wai-hub-pulse-active {
             0%, 100% { box-shadow: 0 0 0 8px rgba(239,68,68,0.2), 0 6px 20px rgba(239,68,68,0.3); }
@@ -3183,14 +3184,14 @@ export default function AgentChat({
           /* -- Offers full-screen ---------------------------------- */
           .wai-offers-fullscreen {
             flex: 1; display: flex; flex-direction: column;
-            background: linear-gradient(to bottom, #f0fdf8 0%, #fff 100%);
+            background: linear-gradient(to bottom, #FAF5F2 0%, #FFF8F5 100%);
             overflow: hidden; min-width: 0;
           }
           .wai-offers-header {
             display: flex; align-items: center; gap: 12px;
             padding: 14px 18px 12px;
             background: rgba(255,255,255,0.85);
-            border-bottom: 1px solid #e0f2ee;
+            border-bottom: 1px solid #f0ddd5;
             flex-shrink: 0;
             backdrop-filter: blur(8px);
           }
@@ -3201,7 +3202,7 @@ export default function AgentChat({
             color: #6b7280; cursor: pointer;
             transition: all 0.15s; flex-shrink: 0;
           }
-          .wai-offers-back:hover { border-color: #14b8a6; color: #0f766e; background: rgba(20,184,166,0.07); }
+          .wai-offers-back:hover { border-color: #E35353; color: #E35353; background: rgba(227,83,83,0.06); }
           .wai-offers-header-text { flex: 1; }
           .wai-offers-title { margin: 0; font-size: 14px; font-weight: 800; color: #111827; }
           .wai-offers-sub { margin: 2px 0 0; font-size: 11px; color: #6b7280; }
@@ -3210,7 +3211,7 @@ export default function AgentChat({
             padding: 16px;
           }
           .wai-offers-scroll::-webkit-scrollbar { width: 3px; }
-          .wai-offers-scroll::-webkit-scrollbar-thumb { background: #b2e4df; border-radius: 4px; }
+          .wai-offers-scroll::-webkit-scrollbar-thumb { background: #e8c9be; border-radius: 4px; }
           .wai-offers-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -3219,16 +3220,16 @@ export default function AgentChat({
           }
           .wai-offers-card {
             background: #fff; border-radius: 16px;
-            border: 1.5px solid #e4f5f3;
+            border: 1.5px solid #f0ddd5;
             display: flex; flex-direction: column;
             overflow: hidden;
             box-shadow: 0 2px 12px rgba(0,0,0,0.06);
             transition: all 0.2s;
           }
-          .wai-offers-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); border-color: #b2e4df; }
+          .wai-offers-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(227,83,83,0.14); border-color: #e8b8ae; }
           .wai-offers-card-icon {
             width: 100%; height: 160px;
-            background: linear-gradient(135deg, #e0f7f5 0%, #ccfbf1 100%);
+            background: linear-gradient(135deg, #fce8e4 0%, #f5d0c8 100%);
             display: flex; align-items: center; justify-content: center;
             font-size: 30px; flex-shrink: 0; overflow: hidden; position: relative;
           }
@@ -3261,7 +3262,7 @@ export default function AgentChat({
           .wai-offers-card-meta { margin: 2px 0; font-size: 10.5px; color: #6b7280; }
           .wai-offers-card-price {
             margin: 4px 0 0; font-size: 14px; font-weight: 800;
-            color: #0f766e; letter-spacing: -0.01em;
+            color: #E35353; letter-spacing: -0.01em;
           }
           .wai-offers-discount {
             display: inline-block; margin-top: 2px;
@@ -3276,8 +3277,8 @@ export default function AgentChat({
             color: #6b7280; font-size: 13px;
           }
           .wai-offers-spinner {
-            width: 32px; height: 32px; border: 3px solid #e0f2ee;
-            border-top-color: #14b8a6; border-radius: 50%;
+            width: 32px; height: 32px; border: 3px solid #f0ddd5;
+            border-top-color: #E35353; border-radius: 50%;
             animation: wai-spin 0.8s linear infinite;
           }
           .wai-offers-empty {
@@ -3300,7 +3301,7 @@ export default function AgentChat({
           /* ── Landing Hub ──────────────────────────────── */
           .wai-hub {
             flex: 1; display: flex; align-items: center; justify-content: center;
-            background: linear-gradient(160deg, #f0fdf9 0%, #f8fafc 50%, #fdf4ff 100%);
+            background: linear-gradient(160deg, #FAF5F2 0%, #FFF8F5 50%, #EFD6C9 100%);
             padding: 20px 16px; overflow-y: auto;
           }
           .wai-hub-inner {
@@ -3315,7 +3316,7 @@ export default function AgentChat({
           }
           .wai-hub-logo-dot {
             width: 36px; height: 4px; border-radius: 4px;
-            background: linear-gradient(90deg, #14b8a6, #8b5cf6);
+            background: linear-gradient(90deg, #E35353, #1A1A1A);
             margin-bottom: 2px;
           }
           .wai-hub-tagline {
@@ -3342,14 +3343,14 @@ export default function AgentChat({
 
           /* Consultation card */
           .wai-hub-card-consult {
-            background: linear-gradient(135deg, #0f766e 0%, #14b8a6 60%, #2dd4bf 100%);
-            box-shadow: 0 8px 28px rgba(20,184,166,0.35), 0 2px 8px rgba(0,0,0,0.06);
+            background: linear-gradient(135deg, #1A1A1A 0%, #2F3336 55%, #E35353 100%);
+            box-shadow: 0 8px 28px rgba(227,83,83,0.35), 0 2px 8px rgba(0,0,0,0.06);
           }
 
           /* Offers card */
           .wai-hub-card-offers {
-            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 55%, #a78bfa 100%);
-            box-shadow: 0 8px 28px rgba(124,58,237,0.32), 0 2px 8px rgba(0,0,0,0.06);
+            background: linear-gradient(135deg, #E35353 0%, #c43a3a 55%, #1A1A1A 100%);
+            box-shadow: 0 8px 28px rgba(227,83,83,0.32), 0 2px 8px rgba(0,0,0,0.06);
           }
 
           /* Card icon wrap */
@@ -3396,20 +3397,20 @@ export default function AgentChat({
             display: flex; align-items: center; justify-content: space-between;
             flex-wrap: wrap; gap: 8px;
             padding: 12px 16px; margin-top: 10px; border-radius: 14px;
-            background: linear-gradient(135deg, rgba(20,184,166,0.1) 0%, rgba(20,184,166,0.06) 100%);
-            border: 1px solid rgba(20,184,166,0.25);
-            box-shadow: 0 2px 8px rgba(20,184,166,0.1);
+            background: linear-gradient(135deg, rgba(227,83,83,0.08) 0%, rgba(227,83,83,0.04) 100%);
+            border: 1px solid rgba(227,83,83,0.2);
+            box-shadow: 0 2px 8px rgba(227,83,83,0.08);
           }
-          .wai-cart-count { font-size: 12px; font-weight: 700; color: #134e4a; }
+          .wai-cart-count { font-size: 12px; font-weight: 700; color: #1A1A1A; }
           .wai-cart-link {
             padding: 5px 14px; border-radius: 10px;
-            border: 1.5px solid #14b8a6; font-size: 11.5px; font-weight: 700;
-            color: #0f766e; background: #fff; text-decoration: none;
+            border: 1.5px solid #E35353; font-size: 11.5px; font-weight: 700;
+            color: #E35353; background: #fff; text-decoration: none;
             transition: all 0.15s;
           }
-          .wai-cart-link:hover { background: #0f766e; color: #fff; }
-          .wai-checkout-link { background: #134e4a; color: #fff; border-color: #134e4a; }
-          .wai-checkout-link:hover { background: #0f766e; border-color: #0f766e; }
+          .wai-cart-link:hover { background: #E35353; color: #fff; }
+          .wai-checkout-link { background: #1A1A1A; color: #fff; border-color: #1A1A1A; }
+          .wai-checkout-link:hover { background: #E35353; border-color: #E35353; }
 
           /* ── Header menu button (three dots) ────────── */
           .wai-header-menu {
@@ -3435,11 +3436,11 @@ export default function AgentChat({
           .wai-mobile-tab:hover { background: rgba(255,255,255,0.15); }
           .wai-mobile-tab-active {
             background: #fff !important;
-            color: #0f766e !important;
+            color: #E35353 !important;
             border-color: #fff !important;
             box-shadow: 0 2px 8px rgba(0,0,0,0.12);
           }
-          .wai-mobile-tab-active svg { stroke: #0f766e; }
+          .wai-mobile-tab-active svg { stroke: #E35353; }
 
           /* ── Responsive: Mobile ──────────────────────── */
           @media (max-width: 640px) {
