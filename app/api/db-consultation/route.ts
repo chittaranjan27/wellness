@@ -62,6 +62,15 @@ interface AgeSegment {
   recommended_product_id: string
 }
 
+interface HealthIssue {
+  health_issue: string
+  primary_product: string
+  supporting_product: string | null
+  target_age_group: string | null
+  key_message: string | null
+  urgency_level: string | null
+}
+
 // ─── Main handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const origin = req.headers.get('origin')
@@ -92,10 +101,11 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 2. Load consultation script + product data (cached 5 min) ─────────
-    const [flowSystemPrompt, products, ageSegments] = await Promise.all([
+    const [flowSystemPrompt, products, ageSegments, healthIssues] = await Promise.all([
       getConsultationFlowPrompt(),
       prisma.$queryRawUnsafe<Product[]>(`SELECT * FROM products ORDER BY product_id`),
       prisma.$queryRawUnsafe<AgeSegment[]>(`SELECT segment_id, recommended_product_id FROM age_segments`),
+      prisma.$queryRawUnsafe<HealthIssue[]>(`SELECT * FROM health_issue_matrix ORDER BY id`),
     ])
 
     // ── 3. Load conversation history from DB ───────────────────────────────
@@ -140,11 +150,20 @@ export async function POST(req: NextRequest) {
     const rawResponse = completion.choices[0]?.message?.content?.trim() || ''
     const usage = completion.usage
 
-    // ── 6a. Extract [OPTIONS] block from LLM response ─────────────────────
-    const { cleanText: responseText, suggestions } = parseOptionsFromResponse(rawResponse)
+    // ── 6a. Extract [OPTIONS] and [PRODUCTS] blocks from LLM response ────
+    const { cleanText: afterOptions, suggestions } = parseOptionsFromResponse(rawResponse)
+    const { cleanText: responseText, recommendedProducts } = parseProductsFromResponse(afterOptions)
 
-    // ── 6b. Detect product mention → return price card ────────────────────
+    // ── 6b. Detect product mention → return price card ────────────────
     const productCard = detectProductCard(responseText, products, ageSegments, history, message)
+
+    // ── 6c. Detect context-relevant products from conversation ─────────
+    const contextProducts = detectContextProducts(
+      [...history, { role: 'user', content: message }, { role: 'assistant', content: responseText }],
+      products,
+      healthIssues,
+      ageSegments
+    )
 
     // ── 7. Save messages to DB ────────────────────────────────────────────
     try {
@@ -177,11 +196,13 @@ export async function POST(req: NextRequest) {
       console.error('[db-consultation] Failed to save messages:', saveErr)
     }
 
-    // ── 8. Return response ────────────────────────────────────────────────
+    // ── 8. Return response ────────────────────────────────────────
     return NextResponse.json(
       {
         response: responseText,
         product: productCard,
+        contextProducts: contextProducts.length > 0 ? contextProducts : undefined,
+        recommendedProducts: recommendedProducts.length > 0 ? recommendedProducts : undefined,
         suggestions: suggestions.length > 0 ? suggestions : undefined,
         tokenUsage: {
           prompt: usage?.prompt_tokens ?? 0,
@@ -248,7 +269,23 @@ function buildSystemPrompt(
     `• Keep each option under 8 words — short and tappable.\n` +
     `• Include a mix: at least one agreeing answer and one that asks for more info or shows hesitation.\n` +
     `• Match the conversation language (Hindi options if responding in Hindi, etc.).\n` +
-    `• NEVER skip the [OPTIONS] block.`
+    `• NEVER skip the [OPTIONS] block.\n\n` +
+    `PRODUCT SIDEBAR (CONDITIONAL):\n` +
+    `When you recommend or mention a specific product from the PRODUCT CATALOG, include a [PRODUCTS] block.\n` +
+    `This block tells the UI which products to display in the sidebar panel.\n` +
+    `ONLY include this block when you are actively recommending or discussing a specific product.\n` +
+    `Do NOT include this block during initial greeting, name exchange, age questions, or general conversation.\n` +
+    `Format:\n` +
+    `[PRODUCTS]\n` +
+    `Exact Product Name 1\n` +
+    `Exact Product Name 2\n` +
+    `[/PRODUCTS]\n\n` +
+    `Rules for [PRODUCTS]:\n` +
+    `• Use EXACT product names from the PRODUCT CATALOG above.\n` +
+    `• Only list products you are actively recommending or discussing in this response.\n` +
+    `• Place the [PRODUCTS] block BEFORE the [OPTIONS] block.\n` +
+    `• If you are NOT recommending any product in this response, do NOT include the [PRODUCTS] block at all.\n` +
+    `• Maximum 3 products per response.`
 
   return prompt
 }
@@ -328,6 +365,178 @@ function formatCard(product: Product): object {
     imageUrl: product.image_url || null,
     url: product.shopify_url || '',
   }
+}
+
+/**
+ * Analyze full conversation context and return relevant products based on
+ * keyword detection and health issue matrix matching.
+ * Products are scored by relevance — the most matching concerns appear first.
+ * Returns formatted product cards with image/url for the UI panel.
+ */
+function detectContextProducts(
+  messages: Array<{ role: string; content: string }>,
+  products: Product[],
+  healthIssues: HealthIssue[],
+  ageSegments: AgeSegment[]
+): object[] {
+  // Build one big lowercase text from the entire conversation
+  const allText = messages.map((m) => m.content).join(' ').toLowerCase()
+
+  // ── Keyword → concern mapping ─────────────────────────────────────────
+  // Each concern group contains keywords that signal a particular health issue
+  const concernKeywords: Record<string, string[]> = {
+    energy: ['energy', 'tired', 'fatigue', 'exhausted', 'weak', 'weakness', 'lethargy', 'lethargic', 'drained', 'low energy', 'no energy', 'ऊर्जा', 'थकान', 'کم توانائی', 'تھکاوٹ'],
+    stamina: ['stamina', 'endurance', 'fitness', 'performance', 'workout', 'exercise', 'physical', 'strength', 'स्टैमिना', 'شکتی', 'اسٹیمینا'],
+    stress: ['stress', 'anxiety', 'tension', 'nervous', 'overwhelmed', 'panic', 'worried', 'burnout', 'तनाव', 'चिंता', 'ذہنی دباؤ'],
+    sleep: ['sleep', 'insomnia', 'sleepless', 'restless', 'can\'t sleep', 'poor sleep', 'nighttime', 'नींद', 'नहीं आती', 'نیند'],
+    hair: ['hair', 'hair fall', 'hair loss', 'baldness', 'thinning', 'receding', 'scalp', 'बाल', 'बालों का झड़ना', 'بال'],
+    diabetes: ['diabetes', 'blood sugar', 'sugar level', 'diabetic', 'glucose', 'insulin', 'मधुमेह', 'शुगर', 'ذیابیطس', 'شوگر'],
+    intimate: ['intimate', 'confidence', 'bedroom', 'libido', 'desire', 'sexual', 'performance anxiety', 'erectile', 'आत्मविश्वास', 'اعتماد'],
+    weight: ['weight', 'obesity', 'overweight', 'body fat', 'belly', 'metabolism', 'वजन', 'موٹاپا'],
+    joints: ['joint', 'knee', 'back pain', 'arthritis', 'stiffness', 'जोड़', 'घुटना', 'کمر درد'],
+    recovery: ['recovery', 'healing', 'post-surgery', 'convalescence', 'rehab', 'रिकवरी', 'بحالی'],
+  }
+
+  // ── Score each concern based on keyword matches ───────────────────────
+  const concernScores = new Map<string, number>()
+  for (const [concern, keywords] of Object.entries(concernKeywords)) {
+    let score = 0
+    for (const kw of keywords) {
+      // Count occurrences — more mentions = stronger signal
+      const regex = new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+      const matches = allText.match(regex)
+      if (matches) score += matches.length
+    }
+    if (score > 0) concernScores.set(concern, score)
+  }
+
+  // No concerns detected yet — too early in conversation
+  if (concernScores.size === 0) return []
+
+  // Sort concerns by score (highest first)
+  const rankedConcerns = [...concernScores.entries()].sort((a, b) => b[1] - a[1])
+
+  // ── Match concerns to products via health issue matrix ────────────────
+  const matchedProductIds = new Set<string>()
+  const productScores = new Map<string, number>()
+
+  for (const [concern, score] of rankedConcerns) {
+    // Find health issues that match this concern
+    for (const hi of healthIssues) {
+      const issueText = hi.health_issue.toLowerCase()
+      const keyMessage = (hi.key_message || '').toLowerCase()
+
+      // Check if this health issue relates to the detected concern
+      const relatedKeywords = concernKeywords[concern] || []
+      const isMatch = relatedKeywords.some(
+        (kw) => issueText.includes(kw) || keyMessage.includes(kw)
+      )
+
+      if (isMatch) {
+        // Find the primary product
+        const primaryProduct = products.find(
+          (p) => p.product_name.toLowerCase() === hi.primary_product.toLowerCase() ||
+                 p.product_id.toLowerCase() === hi.primary_product.toLowerCase()
+        )
+        if (primaryProduct) {
+          matchedProductIds.add(primaryProduct.product_id)
+          productScores.set(
+            primaryProduct.product_id,
+            (productScores.get(primaryProduct.product_id) || 0) + score
+          )
+        }
+
+        // Also add supporting product if available
+        if (hi.supporting_product && hi.supporting_product !== '—' && hi.supporting_product !== '-') {
+          const supportProduct = products.find(
+            (p) => p.product_name.toLowerCase() === hi.supporting_product!.toLowerCase() ||
+                   p.product_id.toLowerCase() === hi.supporting_product!.toLowerCase()
+          )
+          if (supportProduct) {
+            matchedProductIds.add(supportProduct.product_id)
+            productScores.set(
+              supportProduct.product_id,
+              (productScores.get(supportProduct.product_id) || 0) + Math.ceil(score * 0.6)
+            )
+          }
+        }
+      }
+    }
+
+    // Also check direct product name mentions in conversation
+    for (const product of products) {
+      if (allText.includes(product.product_name.toLowerCase())) {
+        matchedProductIds.add(product.product_id)
+        productScores.set(
+          product.product_id,
+          (productScores.get(product.product_id) || 0) + 10 // High score for direct mention
+        )
+      }
+    }
+  }
+
+  // ── Also match by age segment ─────────────────────────────────────────
+  const agePatterns: Record<string, string[]> = {
+    '24-35': ['24', '25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '35'],
+    '35-45': ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45'],
+    '45-55': ['46', '47', '48', '49', '50', '51', '52', '53', '54', '55'],
+    '55+': ['56', '57', '58', '59', '60', '61', '62', '63', '64', '65'],
+  }
+
+  for (const [_range, ageKws] of Object.entries(agePatterns)) {
+    if (ageKws.some((kw) => allText.includes(kw))) {
+      const seg = ageSegments.find((s) =>
+        ageKws.some((kw) => s.segment_id?.toLowerCase().includes(kw) || _range.includes(kw))
+      )
+      if (seg) {
+        const recommended = products.find((p) => p.product_id === seg.recommended_product_id)
+        if (recommended) {
+          matchedProductIds.add(recommended.product_id)
+          productScores.set(
+            recommended.product_id,
+            (productScores.get(recommended.product_id) || 0) + 3 // Moderate score for age match
+          )
+        }
+      }
+      break
+    }
+  }
+
+  // No products matched
+  if (matchedProductIds.size === 0) return []
+
+  // ── Sort by relevance score and return formatted cards ────────────────
+  const matchedProducts = products
+    .filter((p) => matchedProductIds.has(p.product_id))
+    .sort((a, b) => (productScores.get(b.product_id) || 0) - (productScores.get(a.product_id) || 0))
+
+  return matchedProducts.map((p) => formatCard(p))
+}
+
+/**
+ * Parse [PRODUCTS]…[/PRODUCTS] block from the LLM response.
+ * Returns the cleaned text (block stripped) and an array of product names
+ * the AI explicitly recommended for the sidebar.
+ */
+function parseProductsFromResponse(raw: string): {
+  cleanText: string
+  recommendedProducts: string[]
+} {
+  const productsRegex = /\[PRODUCTS\]\s*([\s\S]*?)\s*\[\/PRODUCTS\]/i
+  const match = raw.match(productsRegex)
+
+  if (!match) {
+    return { cleanText: raw, recommendedProducts: [] }
+  }
+
+  const cleanText = raw.replace(productsRegex, '').trim()
+  const recommendedProducts = match[1]
+    .split('\n')
+    .map((line) => line.replace(/^[-•*\d.)\\]\s]+/, '').trim())
+    .filter((line) => line.length > 0 && line.length < 150)
+
+  console.log('[db-consultation] AI recommended products:', recommendedProducts)
+  return { cleanText, recommendedProducts }
 }
 
 /**

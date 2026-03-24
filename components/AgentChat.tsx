@@ -31,6 +31,7 @@ interface ProductItem {
   url: string;
   imageUrl?: string | null;
   features?: string[];
+  variantId?: string | null; // Shopify numeric variant ID for cart/add URL
 }
 
 interface CartItem {
@@ -207,18 +208,36 @@ export default function AgentChat({
     }
   }, [isEmbedChat, languageConfirmed]);
 
-  // Fetch all products from DB when Offers & Products view is opened
+  // Fetch Shopify products when Offers & Products view is opened
   useEffect(() => {
     if (chatMode !== 'offers') return;
     if (dbProducts.length > 0) return; // already loaded
     setDbProductsLoading(true);
-    fetch('/api/products')
+    fetch('/api/shopify/products')
       .then(res => res.json())
       .then(data => {
-        setDbProducts(Array.isArray(data.products) ? data.products : []);
+        const products = Array.isArray(data.products) ? data.products : [];
+        // Map Shopify products to include description, tags, variants, url, variantId
+        const mapped = products.map((p: any) => {
+          const variants = Array.isArray(p.variants) ? p.variants : [];
+          // Use first available variant ID for Add to Cart
+          const firstVariant = variants.find((v: any) => v.available !== false) || variants[0];
+          return {
+            id: p.id,
+            title: p.title,
+            description: p.description || null,
+            price: p.price || null,
+            imageUrl: p.imageUrl || null,
+            url: p.url || null,
+            tags: Array.isArray(p.tags) ? p.tags : [],
+            variants,
+            variantId: firstVariant?.id || null, // Shopify variant ID for cart/add URL
+          };
+        });
+        setDbProducts(mapped);
       })
       .catch(err => {
-        console.error('[Offers] Failed to fetch products:', err);
+        console.error('[Offers] Failed to fetch Shopify products:', err);
         setDbProducts([]);
       })
       .finally(() => setDbProductsLoading(false));
@@ -240,290 +259,45 @@ export default function AgentChat({
     setMessages((prev) => [...prev, assistantMessage]);
   };
 
-  const buildCheckoutLink = (items: CartItem[]) => {
-    if (items.length === 0) return null;
-    const urls = items.flatMap((item) => Array(item.quantity).fill(item.product.url)).filter(Boolean);
-    if (urls.length === 0) return null;
-    const origin = (() => { try { return new URL(urls[0]).origin; } catch { return null; } })();
-    if (!origin) return null;
-    const itemsParam = encodeURIComponent(urls.join("|"));
-    return `${origin}/checkout?items=${itemsParam}`;
+  const buildCheckoutLink = (_items: CartItem[]) => {
+    return 'https://stayonwellness.com/cart';
   };
 
-  // Add item to website's cart via API or form submission
-  const addToWebsiteCart = async (product: ProductItem, quantity: number): Promise<boolean> => {
-    try {
-      const productUrl = new URL(product.url);
-
-      // Extract product ID - try multiple methods
-      let productId: string | null = null;
-
-      // Method 1: Try to extract from URL query parameters (e.g., ?product_id=320 or ?id=320)
-      const urlParams = new URLSearchParams(productUrl.search);
-      productId = urlParams.get('add-to-cart') ||
-        urlParams.get('product_id') ||
-        urlParams.get('product-id') ||
-        urlParams.get('id') ||
-        urlParams.get('p') ||
-        null;
-
-      // Method 2: Try to extract from URL path (e.g., /product/320 or /product/320/)
-      if (!productId) {
-        const pathMatch = product.url.match(/\/(?:product|p|item)\/(\d+)(?:\/|$|\?)/i);
-        productId = pathMatch ? pathMatch[1] : null;
-      }
-
-      // Method 3: Try to fetch product page from frontend (may fail with CORS if cross-origin)
-      if (!productId) {
-        try {
-          const response = await fetch(product.url, {
-            method: 'GET',
-            credentials: 'include',
-            headers: { 'Accept': 'text/html' },
-          });
-          if (response.ok) {
-            const html = await response.text();
-            const idPatterns = [
-              /data-product-id=["'](\d+)["']/i,
-              /<input[^>]*name=["']add-to-cart["'][^>]*value=["'](\d+)["']/i,
-              /add-to-cart["']?\s*[:=]\s*["']?(\d+)/i,
-            ];
-            for (const pattern of idPatterns) {
-              const match = html.match(pattern);
-              if (match?.[1]) { productId = match[1]; break; }
-            }
-          }
-        } catch {
-          console.log(`[Cart] Frontend fetch failed (CORS?), trying server proxy`);
-        }
-      }
-
-      // Method 4: Server-side proxy - fetches product page and extracts ID (works for slug URLs, no CORS)
-      if (!productId) {
-        try {
-          const res = await fetch('/api/shop/product-id', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: product.url }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            productId = data.productId || null;
-          }
-        } catch (err) {
-          console.log(`[Cart] Server proxy failed:`, err);
-        }
-      }
-
-      // Never use product.id - it's a document UUID, not a WooCommerce numeric ID
-      // WooCommerce requires numeric IDs (e.g. 1670)
-      if (!productId || !/^\d+$/.test(productId)) {
-        console.error(`[Cart] No valid WooCommerce product ID found for: ${product.url}`);
-        return false;
-      }
-
-      console.log(`[Cart] Extracted product ID: ${productId} from URL: ${product.url}`);
-
-      // Use full shop URL - /shop/ and /cart exist on the shop domain, not on the chat app
-      const shopOrigin = productUrl.origin;
-      const addToCartUrl = quantity > 1
-        ? `${shopOrigin}/shop/?add-to-cart=${productId}&quantity=${quantity}`
-        : `${shopOrigin}/shop/?add-to-cart=${productId}`;
-
-      console.log(`[Cart] Constructed add-to-cart URL: ${addToCartUrl}`);
-      console.log(`[Cart] Product ID: ${productId}, Quantity: ${quantity}`);
-
-      // Method 1: Try to fetch the add-to-cart URL directly (GET request)
-      try {
-        const addResponse = await fetch(addToCartUrl, {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Accept': 'text/html',
-          },
-          redirect: 'follow',
-        });
-
-        if (addResponse.ok || addResponse.redirected || addResponse.status === 200 || addResponse.status === 302) {
-          console.log(`[Cart] Successfully added via direct fetch: ${addToCartUrl}`);
-          // Wait a moment for cart to process
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return true;
-        }
-      } catch (fetchError) {
-        console.log(`[Cart] Direct fetch failed (may be CORS), trying iframe:`, fetchError);
-      }
-
-      // Method 2: Open add-to-cart URL in popup (same-origin, adds product when URL loads)
-      try {
-        const popup = window.open(addToCartUrl, '_cart_add', 'width=1,height=1,left=-9999,top=-9999');
-        if (popup) {
-          return new Promise((resolve) => {
-            setTimeout(() => {
-              if (!popup.closed) popup.close();
-              console.log(`[Cart] Opened add-to-cart URL in popup: ${addToCartUrl}`);
-              resolve(true);
-            }, 2000);
-          });
-        }
-      } catch (popupError) {
-        console.log(`[Cart] Popup method failed:`, popupError);
-      }
-
-      // Method 3: Try client-side form submission (same-origin only; may fail with CORS if cross-origin)
-      try {
-        const response = await fetch(product.url, {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Accept': 'text/html',
-          },
-        });
-
-        if (response.ok) {
-          const html = await response.text();
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(html, 'text/html');
-
-          // Find add-to-cart form
-          const addToCartForm = doc.querySelector('form[action*="cart"], form[action*="add"], form[id*="cart"], form[class*="cart"], form[data-product-id]') as HTMLFormElement;
-
-          if (addToCartForm) {
-            const formAction = addToCartForm.action || product.url;
-            const formMethod = (addToCartForm.method || 'POST').toUpperCase();
-
-            // Collect form data
-            const formData = new FormData();
-
-            // Add all existing form fields
-            const inputs = addToCartForm.querySelectorAll('input, select, textarea');
-            inputs.forEach((input: any) => {
-              if (input.name && input.type !== 'submit' && input.type !== 'button') {
-                if (input.type === 'checkbox' || input.type === 'radio') {
-                  if (input.checked) {
-                    formData.append(input.name, input.value || '1');
-                  }
-                } else {
-                  formData.append(input.name, input.value || '');
-                }
-              }
-            });
-
-            // Override quantity if field exists
-            if (formData.has('quantity') || formData.has('qty')) {
-              formData.set('quantity', quantity.toString());
-              formData.set('qty', quantity.toString());
-            } else {
-              formData.append('quantity', quantity.toString());
-            }
-
-            // Try to submit the form
-            try {
-              const submitResponse = await fetch(formAction, {
-                method: formMethod,
-                body: formData,
-                credentials: 'include',
-              });
-
-              if (submitResponse.ok || submitResponse.redirected) {
-                console.log(`[Cart] Successfully added via form submission to ${formAction}`);
-                return true;
-              }
-            } catch (formError) {
-              console.log(`[Cart] Form submission failed:`, formError);
-            }
-          }
-        }
-      } catch (fetchError) {
-        console.log(`[Cart] Failed to fetch product page:`, fetchError);
-      }
-
-      // Method 2: Use hidden iframe with the properly constructed add-to-cart URL
-      // This is the most reliable method for cross-origin requests
-      return new Promise((resolve) => {
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.style.width = '1px';
-        iframe.style.height = '1px';
-        iframe.style.position = 'absolute';
-        iframe.style.left = '-9999px';
-        iframe.style.visibility = 'hidden';
-        iframe.src = addToCartUrl;
-
-        let resolved = false;
-
-        // Wait for iframe to load
-        iframe.onload = () => {
-          if (resolved) return;
-          // Give time for the cart to process the add-to-cart request
-          setTimeout(() => {
-            if (document.body.contains(iframe)) {
-              document.body.removeChild(iframe);
-            }
-            console.log(`[Cart] Successfully loaded add-to-cart URL in iframe: ${addToCartUrl}`);
-            resolved = true;
-            resolve(true);
-          }, 2000); // Wait 2 seconds for cart to process
-        };
-
-        iframe.onerror = () => {
-          if (resolved) return;
-          if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
-          }
-          console.log(`[Cart] Iframe error - but request may have succeeded`);
-          resolved = true;
-          // Still resolve as true because the request might have gone through
-          resolve(true);
-        };
-
-        document.body.appendChild(iframe);
-
-        // Fallback timeout - give enough time for the cart to process
-        setTimeout(() => {
-          if (!resolved) {
-            if (document.body.contains(iframe)) {
-              document.body.removeChild(iframe);
-            }
-            console.log(`[Cart] Iframe timeout - request should have completed: ${addToCartUrl}`);
-            resolved = true;
-            resolve(true);
-          }
-        }, 3000);
-      });
-    } catch (error) {
-      console.error('[Cart] Error adding to website cart:', error);
-      return false;
-    }
-  };
-
-  const handleAddToCart = async (product: ProductItem, quantity: number = 1) => {
+  /**
+   * Add to Cart via Shopify's cart/add URL.
+   * Opens: https://stayonwellness.com/cart/add?id=<variant_id>&quantity=1&return_to=/cart
+   * Each product must have a variantId (Shopify numeric variant ID).
+   */
+  const handleAddToCart = (product: ProductItem, quantity: number = 1) => {
     if (quantity < 1) return;
 
-    // Show loading during add (4-5 seconds)
-    setAddingProductIds((prev) => new Set(prev).add(product.id));
+    // Extract numeric variant ID from Shopify GID (e.g. gid://shopify/ProductVariant/12345 → 12345)
+    const rawVariantId = product.variantId || '';
+    const numericId = rawVariantId.includes('/')
+      ? rawVariantId.split('/').pop() || rawVariantId
+      : rawVariantId;
 
-    try {
-      // Add to website's cart first (takes 4-5 seconds)
-      await addToWebsiteCart(product, quantity);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    } finally {
-      setAddingProductIds((prev) => {
-        const next = new Set(prev);
-        next.delete(product.id);
-        return next;
-      });
-      // Only update cart and show View Cart/Checkout after add completes
-      setCartItems((prev) => {
-        const existing = prev.find((item) => item.product.id === product.id);
-        if (existing) {
-          return prev.map((item) =>
-            item.product.id === product.id ? { ...item, quantity } : item
-          );
-        }
-        return [...prev, { product, quantity }];
-      });
+    if (!numericId) {
+      console.error('[Cart] No variant ID for product:', product.title);
+      return;
     }
+
+    const addToCartUrl = `https://stayonwellness.com/cart/add?id=${numericId}&quantity=${quantity}&return_to=/cart`;
+    console.log(`[Cart] Opening: ${addToCartUrl}`);
+
+    // Open in new tab — Shopify adds to cart and redirects to /cart
+    window.open(addToCartUrl, '_blank');
+
+    // Mark as added in local state
+    setCartItems((prev) => {
+      const existing = prev.find((item) => item.product.id === product.id);
+      if (existing) {
+        return prev.map((item) =>
+          item.product.id === product.id ? { ...item, quantity } : item
+        );
+      }
+      return [...prev, { product, quantity }];
+    });
   };
 
   const handleUpdateCartQuantity = (productId: string, delta: number) => {
@@ -1508,40 +1282,81 @@ export default function AgentChat({
           return nextMessages;
         });
 
-        // ── Populate right-side product panel when a product is detected ──
-        if (consultData.product) {
-          // Fetch full product catalog (with images + URLs) and find the matching product
+        // ── Show AI-recommended products in the right panel ─────────────
+        // The AI decides which products to recommend based on the consultation flow.
+        // It outputs a [PRODUCTS] block only when it's ready to recommend.
+        // We match those product names against the Shopify catalog.
+        const aiRecommendedNames: string[] = Array.isArray(consultData.recommendedProducts)
+          ? consultData.recommendedProducts
+          : [];
+
+        if (aiRecommendedNames.length > 0) {
           try {
-            const productsRes = await fetch('/api/products');
-            const productsData = await productsRes.json();
-            if (Array.isArray(productsData.products) && productsData.products.length > 0) {
-              const allProducts: ProductItem[] = productsData.products.map((p: any) => ({
-                id: p.id,
-                title: p.title,
-                description: p.description || null,
-                price: p.price,
-                url: p.url || '',
-                imageUrl: p.imageUrl || null,
-                features: p.features || [],
-              }));
-              // Find exact match by product name/id
-              const matchedProduct = allProducts.find(
-                (p) => p.id === consultData.product.id ||
-                       p.title.toLowerCase() === (consultData.product.title || '').toLowerCase()
-              );
-              if (matchedProduct) {
-                // Add the matched product to results (avoid duplicates)
-                setProductResults(prev => {
-                  const exists = prev.some(p => p.id === matchedProduct.id);
-                  return exists ? prev : [...prev, matchedProduct];
-                });
-              } else {
-                // No exact match — show all products as context recommendations
-                setProductResults(prev => prev.length > 0 ? prev : allProducts.slice(0, 6));
+            const shopifyRes = await fetch('/api/shopify/products');
+            const shopifyData = await shopifyRes.json();
+            const shopifyCatalog: ProductItem[] = Array.isArray(shopifyData.products)
+              ? shopifyData.products.map((p: any) => {
+                  const variants = Array.isArray(p.variants) ? p.variants : [];
+                  const firstVariant = variants.find((v: any) => v.available !== false) || variants[0];
+                  return {
+                    id: p.id,
+                    title: p.title,
+                    description: p.description || null,
+                    price: p.price || null,
+                    url: p.url || '',
+                    imageUrl: p.imageUrl || null,
+                    features: p.tags || [],
+                    variantId: firstVariant?.id || null,
+                  };
+                })
+              : [];
+
+            // Match AI-recommended product names against Shopify catalog
+            const matched: ProductItem[] = [];
+            for (const recName of aiRecommendedNames) {
+              const recLower = recName.toLowerCase().trim();
+              // Extract significant words from the recommended name (3+ chars)
+              const recWords = recLower
+                .replace(/[()[\]{},.|]/g, ' ')
+                .split(/[\s\-–—_]+/)
+                .filter(w => w.length >= 3);
+
+              // Find best Shopify match: prefer exact include, then word overlap
+              let bestMatch: ProductItem | null = null;
+              let bestOverlap = 0;
+
+              for (const sp of shopifyCatalog) {
+                const spLower = sp.title.toLowerCase();
+                // Exact substring match (either direction)
+                if (spLower.includes(recLower) || recLower.includes(spLower)) {
+                  bestMatch = sp;
+                  break;
+                }
+                // Word overlap: count how many significant words match
+                const spWords = spLower
+                  .replace(/[()[\]{},.|]/g, ' ')
+                  .split(/[\s\-–—_]+/)
+                  .filter(w => w.length >= 3);
+                const overlap = recWords.filter(w => spWords.includes(w)).length;
+                if (overlap > bestOverlap) {
+                  bestOverlap = overlap;
+                  bestMatch = sp;
+                }
+              }
+
+              // Accept match if at least 2 words overlap (or exact substring match)
+              if (bestMatch && (bestOverlap >= 2 || recLower.includes(bestMatch.title.toLowerCase()) || bestMatch.title.toLowerCase().includes(recLower))) {
+                const alreadyAdded = matched.some(m => m.id === bestMatch!.id);
+                if (!alreadyAdded) matched.push(bestMatch);
               }
             }
-          } catch (productErr) {
-            console.error('[Consultation] Failed to fetch products for panel:', productErr);
+
+            if (matched.length > 0) {
+              setProductResults(matched);
+              console.log('[Consultation] AI-recommended products displayed:', matched.map(p => p.title));
+            }
+          } catch (shopifyErr) {
+            console.error('[Consultation] Shopify product fetch failed:', shopifyErr);
           }
         }
 
@@ -2304,7 +2119,7 @@ export default function AgentChat({
               </div>
             )}
 
-            {/* ══ FULL-SCREEN OFFERS MODE: Products only, no chat ══ */}
+            {/* ══ FULL-SCREEN OFFERS MODE: Combos & Offers only ══ */}
             {chatMode === 'offers' && (
               <div className="wai-offers-fullscreen">
                 {/* Header bar */}
@@ -2316,8 +2131,8 @@ export default function AgentChat({
                     </svg>
                   </button>
                   <div className="wai-offers-header-text">
-                    <p className="wai-offers-title">🎁 Offers &amp; Products</p>
-                    <p className="wai-offers-sub">{dbProductsLoading ? 'Loading...' : `${dbProducts.length} product${dbProducts.length !== 1 ? 's' : ''} available`}</p>
+                    <p className="wai-offers-title">🎁 Offers & Combos</p>
+                    <p className="wai-offers-sub">{dbProductsLoading ? 'Loading...' : `${dbProducts.length} offer${dbProducts.length !== 1 ? 's' : ''} available`}</p>
                   </div>
                 </div>
 
@@ -2326,22 +2141,27 @@ export default function AgentChat({
                   {dbProductsLoading ? (
                     <div className="wai-offers-loading">
                       <div className="wai-offers-spinner" />
-                      <p>Loading products…</p>
+                      <p>Loading offers…</p>
                     </div>
                   ) : dbProducts.length === 0 ? (
                     <div className="wai-offers-empty">
                       <span style={{ fontSize: '36px' }}>🌿</span>
-                      <p>No products found.</p>
+                      <p>No offers found.</p>
                     </div>
                   ) : (
                     <div className="wai-offers-grid">
-                      {dbProducts.map((p) => {
-                        const funnelColors: Record<string, { bg: string; color: string }> = {
-                          hero: { bg: 'rgba(20,184,166,0.12)', color: '#0d7060' },
-                          upsell: { bg: 'rgba(139,92,246,0.1)', color: '#6d28d9' },
-                          cross_sell: { bg: 'rgba(249,115,22,0.1)', color: '#c2410c' },
-                        };
-                        const roleStyle = funnelColors[p.funnelRole] ?? { bg: 'rgba(107,114,128,0.1)', color: '#374151' };
+                      {dbProducts.map((p: any) => {
+                        const hasVariants = Array.isArray(p.variants) && p.variants.length > 1;
+                        const description = p.description
+                          ? p.description.length > 120
+                            ? p.description.slice(0, 120) + '…'
+                            : p.description
+                          : null;
+
+                        // Detect offer/combo from tags
+                        const tags: string[] = Array.isArray(p.tags) ? p.tags : [];
+                        const isCombo = tags.some((t: string) => /combo|bundle|offer|pack|save|deal/i.test(t));
+                        const offerTag = isCombo ? 'Combo Offer' : hasVariants ? 'Multi-Pack' : 'Special';
 
                         return (
                           <div key={p.id} className="wai-offers-card">
@@ -2368,23 +2188,45 @@ export default function AgentChat({
                             <div className="wai-offers-card-body">
                               <p className="wai-offers-card-title">{p.title}</p>
 
+                              {/* Description */}
+                              {description && (
+                                <p style={{ margin: '4px 0 8px', fontSize: '11.5px', lineHeight: '1.5', color: '#4b5563' }}>
+                                  {description}
+                                </p>
+                              )}
+
                               {/* Tags row */}
                               <div className="wai-offers-card-tags">
-                                <span className="wai-offers-tag" style={{ background: roleStyle.bg, color: roleStyle.color }}>
-                                  {p.funnelRole.replace('_', ' ')}
+                                <span className="wai-offers-tag" style={{ background: 'rgba(20,184,166,0.12)', color: '#0d7060' }}>
+                                  {offerTag}
                                 </span>
-                                <span className="wai-offers-tag" style={{ background: 'rgba(20,184,166,0.1)', color: '#0d7060' }}>
-                                  {p.supplyDays}-day supply
-                                </span>
-                                <span className="wai-offers-tag" style={{ background: 'rgba(59,130,246,0.1)', color: '#1d4ed8' }}>
-                                  {p.capsuleCount} caps
-                                </span>
+                                {hasVariants && (
+                                  <span className="wai-offers-tag" style={{ background: 'rgba(139,92,246,0.1)', color: '#6d28d9' }}>
+                                    {p.variants.length} options
+                                  </span>
+                                )}
+                                {tags.slice(0, 2).map((tag: string, i: number) => (
+                                  <span key={i} className="wai-offers-tag" style={{ background: 'rgba(249,115,22,0.1)', color: '#c2410c' }}>
+                                    {tag}
+                                  </span>
+                                ))}
                               </div>
 
-                              {/* Dosage */}
-                              <p className="wai-offers-card-meta">
-                                {p.dailyDose} capsule{p.dailyDose !== 1 ? 's' : ''}/day · {p.market}
-                              </p>
+                              {/* Variant options */}
+                              {hasVariants && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', margin: '6px 0' }}>
+                                  {p.variants.map((v: any, vi: number) => (
+                                    <span key={vi} style={{
+                                      padding: '2px 8px', borderRadius: '12px', fontSize: '10px', fontWeight: 600,
+                                      background: vi === 0 ? 'rgba(20,184,166,0.15)' : 'rgba(107,114,128,0.08)',
+                                      color: vi === 0 ? '#0d7060' : '#6b7280',
+                                      border: vi === 0 ? '1px solid rgba(20,184,166,0.3)' : '1px solid rgba(107,114,128,0.15)',
+                                    }}>
+                                      {v.title !== 'Default Title' ? v.title : 'Standard'} · {v.price}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
 
                               {/* Stars */}
                               <div className="wai-product-stars" style={{ margin: '6px 0 4px' }}>
@@ -2397,16 +2239,98 @@ export default function AgentChat({
                               </div>
 
                               {/* Price */}
-                              <p className="wai-offers-card-price">{p.price}</p>
+                              <p className="wai-offers-card-price">{p.price || 'Contact for price'}</p>
 
-                              {/* Discount badge */}
-                              {p.discountEligible && p.discountPct && (
-                                <span className="wai-offers-discount">🏷 {p.discountPct}% off on bundle</span>
-                              )}
+                              {/* Add to Cart + View Details */}
+                              {(() => {
+                                // Create ProductItem shape for cart handler
+                                const cartProduct: ProductItem = {
+                                  id: p.id,
+                                  title: p.title,
+                                  description: p.description || null,
+                                  price: p.price || null,
+                                  url: p.url || '',
+                                  imageUrl: p.imageUrl || null,
+                                  features: tags,
+                                  variantId: p.variantId || (p.variants?.[0]?.id) || null,
+                                };
+                                const inCart = cartItems.find(item => item.product.id === p.id);
+                                const isAdding = addingProductIds.has(p.id);
+                                return (
+                                  <div style={{ display: 'flex', gap: '8px', marginTop: '10px', alignItems: 'center' }}>
+                                    <button type="button"
+                                      onClick={() => handleAddToCart(cartProduct, 1)}
+                                      disabled={!!inCart || isAdding}
+                                      style={{
+                                        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                        padding: '8px 16px', borderRadius: '22px', border: 'none', cursor: inCart || isAdding ? 'default' : 'pointer',
+                                        fontSize: '11.5px', fontWeight: 700, color: '#fff',
+                                        background: inCart
+                                          ? 'linear-gradient(135deg, #059669, #10b981)'
+                                          : isAdding
+                                            ? 'linear-gradient(135deg, #6b7280, #9ca3af)'
+                                            : 'linear-gradient(135deg, #0f766e 0%, #14b8a6 100%)',
+                                        boxShadow: inCart
+                                          ? '0 2px 8px rgba(5,150,105,0.3)'
+                                          : '0 2px 8px rgba(20,184,166,0.3)',
+                                        transition: 'all 0.2s ease',
+                                        opacity: isAdding ? 0.8 : 1,
+                                      }}
+                                    >
+                                      {inCart ? (
+                                        <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg> Added</>
+                                      ) : isAdding ? (
+                                        <><span className="wai-spinner" /> Adding...</>
+                                      ) : (
+                                        <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 01-8 0" /></svg> Add to Cart</>
+                                      )}
+                                    </button>
+                                    {p.url && (
+                                      <a href={p.url} target="_blank" rel="noopener noreferrer" style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        width: '34px', height: '34px', borderRadius: '50%',
+                                        background: 'rgba(20,184,166,0.08)', border: '1px solid rgba(20,184,166,0.2)',
+                                        color: '#0f766e', textDecoration: 'none', flexShrink: 0,
+                                      }} title="View Details">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                          <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                                        </svg>
+                                      </a>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </div>
                         );
                       })}
+
+                      {/* CTA: Need help choosing? */}
+                      <div style={{
+                        gridColumn: '1 / -1', padding: '20px', borderRadius: '16px',
+                        background: 'linear-gradient(135deg, rgba(20,184,166,0.08) 0%, rgba(15,118,110,0.06) 100%)',
+                        border: '1px dashed rgba(20,184,166,0.3)', textAlign: 'center',
+                      }}>
+                        <p style={{ margin: '0 0 6px', fontSize: '14px', fontWeight: 700, color: '#0f766e' }}>
+                          🤔 Need help choosing the right product?
+                        </p>
+                        <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#4b5563' }}>
+                          Our AI consultant can analyze your specific needs and recommend the perfect solution for you.
+                        </p>
+                        <button type="button" onClick={() => { setChatMode('consultation'); setDbProducts([]); }}
+                          style={{
+                            padding: '8px 24px', borderRadius: '24px', border: 'none', cursor: 'pointer',
+                            fontSize: '12px', fontWeight: 700, color: '#fff',
+                            background: 'linear-gradient(135deg, #0f766e 0%, #14b8a6 100%)',
+                            boxShadow: '0 2px 12px rgba(20,184,166,0.35)',
+                            transition: 'transform 0.2s, box-shadow 0.2s',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.05)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                        >
+                          💬 Start Consultation
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
