@@ -153,14 +153,16 @@
                 margin: 0 !important;
               }
               .wai-inline-container iframe {
-                height: 500px !important;
+                height: 92dvh !important;
+                max-height: 92dvh !important;
                 border-radius: 12px !important;
               }
             }
             @media (max-width: 480px) {
               .wai-inline-container iframe {
-                height: 460px !important;
-                border-radius: 8px !important;
+                height: 90dvh !important;
+                max-height: 90dvh !important;
+                border-radius: 0 !important;
               }
             }
           `;
@@ -191,8 +193,8 @@
           glowStyle.id = 'wai-widget-glow-styles';
           glowStyle.textContent = `
             @keyframes wai-btn-glow {
-              0%, 100% { box-shadow: 0 4px 14px rgba(227,83,83,0.4), 0 0 20px rgba(227,83,83,0.2); }
-              50% { box-shadow: 0 4px 20px rgba(227,83,83,0.6), 0 0 32px rgba(227,83,83,0.3); }
+              0%, 100% { box-shadow: 0 4px 14px rgba(44,44,44,0.5), 0 0 20px rgba(44,44,44,0.2); }
+              50% { box-shadow: 0 4px 20px rgba(44,44,44,0.6), 0 0 32px rgba(44,44,44,0.25); }
             }
             @media (max-width: 640px) {
               [id^="ai-agent-chat-window-"] {
@@ -221,11 +223,11 @@
       width: 60px;
       height: 60px;
       border-radius: 50%;
-      background: #E35353;
+      background: #2C2C2C;
       color: white;
       border: none;
       cursor: pointer;
-      box-shadow: 0 4px 14px rgba(227,83,83,0.4), 0 0 20px rgba(227,83,83,0.2);
+      box-shadow: 0 4px 14px rgba(44,44,44,0.5), 0 0 20px rgba(44,44,44,0.2);
       z-index: 9999;
       display: flex;
       align-items: center;
@@ -254,10 +256,10 @@
         height: 600px;
         max-width: calc(100vw - 40px);
         max-height: calc(100vh - 120px);
-        background: #FAF5F2;
+        background: #F7F3EE;
         border-radius: 14px;
-        border: 1.5px solid rgba(227,83,83,0.2);
-        box-shadow: 0 10px 40px rgba(0,0,0,0.15), 0 0 24px rgba(227,83,83,0.18), 0 0 48px rgba(227,83,83,0.07);
+        border: 1.5px solid rgba(44,44,44,0.15);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.18), 0 2px 12px rgba(0,0,0,0.1);
         z-index: 9998;
         display: none;
         flex-direction: column;

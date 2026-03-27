@@ -29,30 +29,6 @@ export const SUPPORTED_LANGUAGES: Language[] = [
     elevenlabsVoiceId: '21m00Tcm4TlvDq8ikWAM', // Will need to find Hindi voice
     openaiLanguage: 'Hindi',
   },
-  {
-    code: 'ur',
-    name: 'Urdu',
-    nativeName: 'اردو',
-    speechRecognitionLang: 'ur-PK',
-    elevenlabsVoiceId: '21m00Tcm4TlvDq8ikWAM', // Will need to find Urdu voice
-    openaiLanguage: 'Urdu',
-  },
-  {
-    code: 'bn',
-    name: 'Bengali',
-    nativeName: 'বাংলা',
-    speechRecognitionLang: 'bn-BD',
-    elevenlabsVoiceId: '21m00Tcm4TlvDq8ikWAM',
-    openaiLanguage: 'Bengali',
-  },
-  {
-    code: 'ar',
-    name: 'Arabic',
-    nativeName: 'العربية',
-    speechRecognitionLang: 'ar-SA',
-    elevenlabsVoiceId: '21m00Tcm4TlvDq8ikWAM',
-    openaiLanguage: 'Arabic',
-  },
 ]
 
 export function getLanguageByCode(code: string): Language | undefined {

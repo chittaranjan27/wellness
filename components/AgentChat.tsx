@@ -330,21 +330,21 @@ export default function AgentChat({
   // Multilingual system message lookup
   const t = (key: string): string => {
     const map: Record<string, Record<string, string>> = {
-      namePrompt: { en: "What should I call you?", hi: "आपका नाम क्या है?", ur: "آپ کا نام کیا ہے؟", bn: "আপনার নাম কী?", ar: "ما اسمك؟" },
-      emailPrompt: { en: "Please enter your email address to continue.", hi: "कृपया अपना ईमेल पता दर्ज करें।", ur: "براہ کرم اپنا ای میل پتہ درج کریں۔", bn: "অনুগ্রহ করে আপনার ইমেইল ঠিকানা দিন।", ar: "يرجى إدخال عنوان بريدك الإلكتروني للمتابعة." },
-      otpSent: { en: "I sent a 6-digit code to your email. Please enter the OTP to verify.", hi: "मैंने आपके ईमेल पर एक 6-अंकीय कोड भेजा है। कृपया OTP दर्ज करें।", ur: "میں نے آپ کی ای میل پر 6 ہندسوں کا کوڈ بھیجا ہے۔ OTP درج کریں۔", bn: "আমি আপনার ইমেইলে 6-সংখ্যার কোড পাঠিয়েছি। OTP লিখুন।", ar: "أرسلت رمزاً من 6 أرقام إلى بريدك. أدخل OTP للتحقق." },
-      otpReminder: { en: "Reminder: please enter the 6-digit OTP sent to your email.", hi: "याद दिलाएं: OTP दर्ज करें।", ur: "یاد دہانی: OTP درج کریں۔", bn: "মনে করিয়ে দিচ্ছি: OTP লিখুন।", ar: "تذكير: أدخل رمز OTP." },
-      otpVerified: { en: "Thanks! I've sent the report to your email. You can also download it above anytime.", hi: "धन्यवाद! रिपोर्ट ईमेल पर भेज दी है।", ur: "شکریہ! رپورٹ ای میل پر بھیج دی ہے۔", bn: "ধন্যবাদ! রিপোর্ট ইমেইলে পাঠানো হয়েছে।", ar: "شكراً! أرسلت التقرير إلى بريدك." },
-      otpVerifiedNoRep: { en: "Thanks! Your email is verified. How can I help you today?", hi: "धन्यवाद! ईमेल सत्यापित हो गया। आज मैं आपकी कैसे मदद करूँ?", ur: "شکریہ! ایمیل تصدیق ہو گئی۔ آج میں کیسے مدد کروں؟", bn: "ধন্যবাদ! ইমেইল যাচাই হয়েছে। কিভাবে সাহায্য করতে পারি?", ar: "شكراً! تم التحقق من بريدك. كيف أساعدك اليوم؟" },
-      otpInvalid: { en: "Invalid or expired code. Please try again.", hi: "अमान्य कोड। पुनः प्रयास करें।", ur: "غلط کوڈ۔ دوبارہ کوشش کریں۔", bn: "অবৈধ কোড। আবার চেষ্টা করুন।", ar: "رمز غير صالح. حاول مرة أخرى." },
-      otpSentVerify: { en: "I've sent a 6-digit code to your email. Please enter it to verify and I'll send the report to your inbox.", hi: "ईमेल पर 6-अंकीय कोड भेजा है। दर्ज करें और रिपोर्ट भेज दूंगा।", ur: "6 ہندسوں کا کوڈ ای میل پر بھیجا۔ درج کریں اور رپورٹ بھیجوں گا۔", bn: "6-সংখ্যার কোড ইমেইলে পাঠানো হয়েছে। দিন এবং রিপোর্ট পাঠাব।", ar: "أرسلت 6 أرقام إلى بريدك. أدخله وسأرسل التقرير." },
-      otpFailed: { en: "I couldn't send the code. Please check the address and try again.", hi: "कोड नहीं भेजा जा सका। पता जांचें और पुनः प्रयास करें।", ur: "کوڈ نہیں بھیجا جا سکا۔ پتہ چیک کریں۔", bn: "কোড পাঠাতে পারিনি। ঠিকানা যাচাই করুন।", ar: "لم أتمكن من إرسال الرمز. تحقق من العنوان." },
-      skipCart: { en: "No problem. You can download the report anytime above.", hi: "कोई बात नहीं। रिपोर्ट कभी भी डाउनलोड करें।", ur: "کوئی بات نہیں۔ رپورٹ کسی وقت ڈاؤن لوڈ کریں۔", bn: "কোনো সমস্যা নেই। রিপোর্ট যেকোনো সময় ডাউনলোড করুন।", ar: "لا بأس. يمكنك تنزيل التقرير في أي وقت." },
-      welcomeBack: { en: "Welcome, {name}! How can I help you today?", hi: "{name} जी, आपका स्वागत है! आज मैं आपकी कैसे मदद कर सकता हूँ?", ur: "{name}، خوش آمدید! آج میں آپ کی کیسے مدد کر سکتا ہوں؟", bn: "{name}, আপনাকে স্বাগতম! আজ আপনার কিভাবে সাহায্য করতে পারি?", ar: "مرحباً {name}! كيف يمكنني مساعدتك اليوم؟" },
-      validResponse: { en: "Please enter a valid response.", hi: "वैध उत्तर दर्ज करें।", ur: "درست جواب درج کریں۔", bn: "সঠিক উত্তর দিন।", ar: "أدخل إجابة صحيحة." },
-      validEmail: { en: "Please enter a valid email address.", hi: "वैध ईमेल पता दर्ज करें।", ur: "درست ای میل پتہ درج کریں۔", bn: "সঠিক ইমেইল ঠিকানা দিন।", ar: "أدخل بريداً إلكترونياً صالحاً." },
-      genericError: { en: "Something went wrong. Please try again.", hi: "कुछ गड़बड़ हुई। पुनः प्रयास करें।", ur: "کچھ غلط ہوا۔ دوبارہ کوشش کریں۔", bn: "কিছু সমস্যা হয়েছে। আবার চেষ্টা করুন।", ar: "حدث خطأ. حاول مرة أخرى." },
-      selectLanguage: { en: "Please select a language to continue.", hi: "कृपया एक भाषा चुनें।", ur: "براہ کرم ایک زبان منتخب کریں۔", bn: "অনুগ্রহ করে একটি ভাষা নির্বাচন করুন।", ar: "يرجى تحديد اللغة للمتابعة." },
+      namePrompt: { en: "What should I call you?", hi: "आपका नाम क्या है?" },
+      emailPrompt: { en: "Please enter your email address to continue.", hi: "कृपया अपना ईमेल पता दर्ज करें।" },
+      otpSent: { en: "I sent a 6-digit code to your email. Please enter the OTP to verify.", hi: "मैंने आपके ईमेल पर एक 6-अंकीय कोड भेजा है। कृपया OTP दर्ज करें।" },
+      otpReminder: { en: "Reminder: please enter the 6-digit OTP sent to your email.", hi: "याद दिलाएं: OTP दर्ज करें।" },
+      otpVerified: { en: "Thanks! I've sent the report to your email. You can also download it above anytime.", hi: "धन्यवाद! रिपोर्ट ईमेल पर भेज दी है।" },
+      otpVerifiedNoRep: { en: "Thanks! Your email is verified. How can I help you today?", hi: "धन्यवाद! ईमेल सत्यापित हो गया। आज मैं आपकी कैसे मदद करूँ?" },
+      otpInvalid: { en: "Invalid or expired code. Please try again.", hi: "अमान्य कोड। पुनः प्रयास करें।" },
+      otpSentVerify: { en: "I've sent a 6-digit code to your email. Please enter it to verify and I'll send the report to your inbox.", hi: "ईमेल पर 6-अंकीय कोड भेजा है। दर्ज करें और रिपोर्ट भेज दूंगा।" },
+      otpFailed: { en: "I couldn't send the code. Please check the address and try again.", hi: "कोड नहीं भेजा जा सका। पता जांचें और पुनः प्रयास करें।" },
+      skipCart: { en: "No problem. You can download the report anytime above.", hi: "कोई बात नहीं। आप रिपोर्ट कभी भी ऊपर से डाउनलोड कर सकते हैं।" },
+      validResponse: { en: "Please enter a valid response.", hi: "वैध उत्तर दर्ज करें।" },
+      validEmail: { en: "Please enter a valid email address.", hi: "वैध ईमेल पता दर्ज करें।" },
+      genericError: { en: "Something went wrong. Please try again.", hi: "कुछ गड़बड़ हुई। पुनः प्रयास करें।" },
+      selectLanguage: { en: "Please select a language to continue.", hi: "कृपया एक भाषा चुनें।" },
+      welcomeBack: { en: "Welcome back, {name}!", hi: "वापसी पर स्वागत है, {name}!" },
     };
     const lang = selectedLanguage in (map[key] || {}) ? selectedLanguage : 'en';
     return (map[key] || {})[lang] || (map[key] || {})['en'] || key;
@@ -357,9 +357,6 @@ export default function AgentChat({
     const greetings: Record<string, string> = {
       en: "Hello! Welcome to Wellness AI. I'm your personal wellness consultant — here to support your physical, mental, and lifestyle well-being.",
       hi: "नमस्ते! Wellness AI में आपका स्वागत है। मैं आपका व्यक्तिगत वेलनेस सलाहकार हूँ — शारीरिक, मानसिक और जीवनशैली से जुड़ी समस्याओं में आपकी मदद के लिए यहाँ हूँ।",
-      ur: "السلام علیکم! Wellness AI میں خوش آمدید۔ میں آپ کا ذاتی ویلنیس مشیر ہوں — جسمانی، ذہنی اور طرزِ زندگی سے متعلق مسائل میں آپ کی مدد کے لیے حاضر ہوں۔",
-      bn: "নমস্কার! Wellness AI-এ আপনাকে স্বাগতম। আমি আপনার ব্যক্তিগত ওয়েলনেস পরামর্শদাতা — শারীরিক, মানসিক এবং জীবনযাত্রার সুস্থতার বিষয়ে সাহায্য করতে এখানে আছি।",
-      ar: "مرحباً! أهلاً بك في Wellness AI. أنا مستشارك الشخصي للعافية — هنا لدعم صحتك الجسدية والنفسية وأسلوب حياتك الصحي.",
     };
     return greetings[languageCode] ?? greetings.en;
   };
@@ -423,9 +420,6 @@ export default function AgentChat({
       const introText: Record<string, string> = {
         en: `Nice to meet you, ${firstName}! 😊\n\nYour conversation is completely private and confidential.\n\nWhat brings you here today? Please select your main concern:`,
         hi: `आपसे मिलकर अच्छा लगा, ${firstName}! 😊\n\nआपकी बातचीत पूरी तरह निजी और गोपनीय है।\n\nआज आप किस विषय में मदद चाहते हैं?`,
-        ur: `آپ سے مل کر خوشی ہوئی، ${firstName}! 😊\n\nآپ کی گفتگو مکمل طور پر نجی اور خفیہ ہے۔\n\nآج آپ کس موضوع پر مدد چاہتے ہیں؟`,
-        bn: `আপনার সাথে পরিচয় হয়ে ভালো লাগলো, ${firstName}! 😊\n\nআপনার কথোপকথন সম্পূর্ণ ব্যক্তিগত ও গোপনীয়।\n\nআজ কোন বিষয়ে সাহায্য চাইছেন?`,
-        ar: `يسعدني لقاؤك، ${firstName}! 😊\n\nمحادثتك خاصة وسرية تماماً.\n\nما الذي يجمعك بنا اليوم؟ اختر موضوعك الرئيسي:`,
       };
 
       // Concern chips — label shown on button, prompt sent to AI when clicked
@@ -443,27 +437,6 @@ export default function AgentChat({
           { label: "आत्मविश्वास और अंतरंग स्वास्थ्य", prompt: "मुझे आत्मविश्वास और अंतरंग स्वास्थ्य से जुड़ी समस्याएँ हैं।" },
           { label: "मधुमेह / ब्लड शुगर", prompt: "मुझे मधुमेह या ब्लड शुगर प्रबंधन में मदद चाहिए।" },
           { label: "सामान्य शक्ति और रिकवरी", prompt: "मैं अपनी सामान्य शक्ति और रिकवरी सुधारना चाहता हूँ।" },
-        ],
-        ur: [
-          { label: "کم توانائی اور تھکاوٹ", prompt: "مجھے کم توانائی اور تھکاوٹ ہو رہی ہے۔ میں کیا کروں؟" },
-          { label: "اسٹیمینا اور کارکردگی", prompt: "میں اپنا اسٹیمینا اور کارکردگی بہتر بنانا چاہتا ہوں۔" },
-          { label: "اعتماد اور قریبی صحت", prompt: "مجھے اعتماد اور قریبی صحت سے متعلق مسائل ہیں۔" },
-          { label: "ذیابیطس / بلڈ شوگر", prompt: "مجھے ذیابیطس یا بلڈ شوگر کنٹرول میں مدد چاہیے۔" },
-          { label: "عمومی طاقت اور بحالی", prompt: "میں اپنی عمومی طاقت اور بحالی بہتر کرنا چاہتا ہوں۔" },
-        ],
-        bn: [
-          { label: "কম শক্তি ও ক্লান্তি", prompt: "আমি কম শক্তি ও ক্লান্তি অনুভব করছি। কী করব?" },
-          { label: "স্ট্যামিনা ও পারফরম্যান্স", prompt: "আমি আমার স্ট্যামিনা ও পারফরম্যান্স উন্নত করতে চাই।" },
-          { label: "আত্মবিশ্বাস ও ঘনিষ্ঠ সুস্থতা", prompt: "আমার আত্মবিশ্বাস ও ঘনিষ্ঠ সুস্থতা নিয়ে সমস্যা আছে।" },
-          { label: "ডায়াবেটিস / রক্তে শর্করা", prompt: "আমার ডায়াবেটিস বা রক্তে শর্করা নিয়ন্ত্রণে সাহায্য দরকার।" },
-          { label: "সাধারণ শক্তি ও পুনরুদ্ধার", prompt: "আমি আমার সাধারণ শক্তি ও পুনরুদ্ধার উন্নত করতে চাই।" },
-        ],
-        ar: [
-          { label: "التعب وانخفاض الطاقة", prompt: "أعاني من التعب وانخفاض الطاقة. ماذا أفعل؟" },
-          { label: "القدرة على التحمل والأداء", prompt: "أريد تحسين قدرتي على التحمل والأداء." },
-          { label: "الثقة بالنفس والصحة الحميمة", prompt: "لدي مخاوف تتعلق بالثقة بالنفس والصحة الحميمة." },
-          { label: "السكري / سكر الدم", prompt: "أحتاج مساعدة في إدارة السكري أو مستوى السكر في الدم." },
-          { label: "القوة العامة والتعافي", prompt: "أريد تحسين قوتي العامة والتعافي." },
         ],
       };
 
@@ -1296,19 +1269,19 @@ export default function AgentChat({
             const shopifyData = await shopifyRes.json();
             const shopifyCatalog: ProductItem[] = Array.isArray(shopifyData.products)
               ? shopifyData.products.map((p: any) => {
-                  const variants = Array.isArray(p.variants) ? p.variants : [];
-                  const firstVariant = variants.find((v: any) => v.available !== false) || variants[0];
-                  return {
-                    id: p.id,
-                    title: p.title,
-                    description: p.description || null,
-                    price: p.price || null,
-                    url: p.url || '',
-                    imageUrl: p.imageUrl || null,
-                    features: p.tags || [],
-                    variantId: firstVariant?.id || null,
-                  };
-                })
+                const variants = Array.isArray(p.variants) ? p.variants : [];
+                const firstVariant = variants.find((v: any) => v.available !== false) || variants[0];
+                return {
+                  id: p.id,
+                  title: p.title,
+                  description: p.description || null,
+                  price: p.price || null,
+                  url: p.url || '',
+                  imageUrl: p.imageUrl || null,
+                  features: p.tags || [],
+                  variantId: firstVariant?.id || null,
+                };
+              })
               : [];
 
             // Match AI-recommended product names against Shopify catalog
@@ -1759,7 +1732,8 @@ export default function AgentChat({
   };
 
   // Languages to show in greeting (English, Hindi, Urdu, Bengali, Arabic)
-  const greetingLanguages = ['en', 'hi', 'ur', 'bn', 'ar'].map(code =>
+  // Only English and Hindi are offered as language choices
+  const greetingLanguages = ['en', 'hi'].map(code =>
     SUPPORTED_LANGUAGES.find(lang => lang.code === code)
   ).filter(Boolean) as typeof SUPPORTED_LANGUAGES;
 
@@ -1839,14 +1813,14 @@ export default function AgentChat({
     }
   };
 
-  // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ FORMAT TIMESTAMP ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+  // -- FORMAT TIMESTAMP ------------------------------
   const formatTime = (date: Date | string) => {
     try {
       return new Date(date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     } catch { return ''; }
   };
 
-  // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ EMBED MODE: Two-panel layout ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+  // -- EMBED MODE: Two-panel layout ------------------
   if (isEmbedChat) {
 
     return (
@@ -1858,15 +1832,16 @@ export default function AgentChat({
             <div style={{ position: 'relative', flexShrink: 0 }}>
               <div className="wai-avatar">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="8" r="4" fill="white" opacity="0.95" />
-                  <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="white" strokeWidth="2.2" strokeLinecap="round" opacity="0.95" />
+                  <path d="M12 3C9 3 6 6 7 10c.7 2.5 2.5 4.5 5 6.5 2.5-2 4.3-4 5-6.5 1-4-2-7-5-7z" fill="white" opacity="0.95" />
+                  <path d="M12 16.5V21" stroke="white" strokeWidth="1.8" strokeLinecap="round" opacity="0.75" />
+                  <path d="M9 19.5c1 .5 2 .5 3 1 1-.5 2-.5 3-1" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.55" />
                 </svg>
               </div>
               <span className="wai-online-dot" />
             </div>
             <div style={{ flex: 1 }}>
-              <p className="wai-agent-name">Wellness AI</p>
-              <p className="wai-agent-status">● Online — ready to help</p>
+              <p className="wai-agent-name">Stay-On Wellness</p>
+              <p className="wai-agent-status">● Online - ready to Talk</p>
             </div>
             {/* Mobile: Chat/Picks tab switcher (shown after language confirmed) */}
             {languageConfirmed && (
@@ -2115,6 +2090,22 @@ export default function AgentChat({
                     </svg>
                     Switch to text
                   </button>
+
+                  {/* Back to hub */}
+                  <button type="button" className="wai-back-btn" style={{ marginTop: '4px' }}
+                    title="Back to menu"
+                    onClick={() => {
+                      voiceAutoListenRef.current = false;
+                      setVoiceCallActive(false);
+                      if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch (e) { } }
+                      const a = currentAudioRef.current; if (a) { a.pause(); a.currentTime = 0; }
+                      setIsListening(false); setIsSpeaking(false);
+                      setChatMode(null);
+                    }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M15 18l-6-6 6-6" />
+                    </svg>
+                  </button>
                 </div>
               </div>
             )}
@@ -2341,6 +2332,20 @@ export default function AgentChat({
             {chatMode !== 'voice' && chatMode !== 'offers' && (
               <div className={`wai-chat${mobileTab === 'chat' ? ' wai-mobile-active' : ''}`}
                 style={!chatMode ? { width: '100%', borderRight: 'none' } : undefined}>
+
+                {/* ─ Back to Hub subheader (shown in consultation mode on all screens) ─ */}
+                {chatMode === 'consultation' && (
+                  <div className="wai-chat-subheader">
+                    <button type="button" className="wai-back-btn"
+                      onClick={() => { setChatMode(null); }}
+                      title="Back to menu">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M15 18l-6-6 6-6" />
+                      </svg>
+                    </button>
+                    <span className="wai-chat-subheader-label">💬 Consultation</span>
+                  </div>
+                )}
 
                 {/* ─ Messages ─ */}
                 <div className="wai-messages">
@@ -2674,7 +2679,7 @@ export default function AgentChat({
           {/* ══ Styles ══ */}
           <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Dosis:wght@400;600;700;800&family=Montserrat:wght@400;500;600;700;800&display=swap');
-          /* ── Outer frame: fills the full iframe (75% centering is done by widget.js) ── */
+          /* ── Outer frame: fills the full iframe ── */
           .wai-frame {
             width: 100%;
             height: 100%;
@@ -2682,8 +2687,8 @@ export default function AgentChat({
             display: flex;
             flex-direction: column;
             border-radius: 16px;
-            border: 1.5px solid rgba(227,83,83,0.18);
-            box-shadow: 0 0 20px rgba(227,83,83,0.12), 0 0 40px rgba(227,83,83,0.05);
+            border: 1.5px solid rgba(192,57,43,0.25);
+            box-shadow: 0 0 24px rgba(192,57,43,0.18), 0 0 48px rgba(192,57,43,0.07);
           }
 
           /* ── Root layout ─────────────────────────────── */
@@ -2693,7 +2698,7 @@ export default function AgentChat({
             flex: 1;
             height: 100%;
             overflow: hidden;
-            background: #FAF5F2;
+            background: linear-gradient(160deg, #FFF0EE 0%, #FAE8E5 40%, #F5DBD7 100%);
             font-family: 'Montserrat', 'Dosis', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             color: #2F3336;
           }
@@ -2713,8 +2718,8 @@ export default function AgentChat({
             flex-direction: column;
             width: 45%;
             min-width: 260px;
-            border-right: 1px solid #f0e4dd;
-            background: #FAF5F2;
+            border-right: 1px solid rgba(192,57,43,0.15);
+            background: linear-gradient(180deg, #FFF0EE 0%, #FAE8E5 100%);
             flex-shrink: 0;
           }
 
@@ -2724,14 +2729,14 @@ export default function AgentChat({
             align-items: center;
             gap: 10px;
             padding: 12px 14px 10px;
-            background: linear-gradient(135deg, #1A1A1A 0%, #2F3336 60%, #414141 100%);
+            background: linear-gradient(135deg, #C0392B 0%, #E35353 55%, #C0392B 100%);
             flex-shrink: 0;
-            box-shadow: 0 2px 12px rgba(26,26,26,0.35), 0 4px 24px rgba(227,83,83,0.15);
+            box-shadow: 0 3px 12px rgba(192,57,43,0.35);
           }
           .wai-avatar {
             width: 40px; height: 40px; border-radius: 50%;
-            background: rgba(255,255,255,0.18);
-            border: 2px solid rgba(255,255,255,0.35);
+            background: rgba(255,255,255,0.22);
+            border: 2px solid rgba(255,255,255,0.45);
             display: flex; align-items: center; justify-content: center;
             backdrop-filter: blur(4px);
             animation: wai-avatar-breathe 3s ease-in-out infinite;
@@ -2739,17 +2744,18 @@ export default function AgentChat({
           .wai-online-dot {
             position: absolute; bottom: 1px; right: 1px;
             width: 10px; height: 10px;
-            background: #22c55e; border-radius: 50%;
-            border: 2px solid #1A1A1A;
-            box-shadow: 0 0 0 2px rgba(34,197,94,0.3), 0 0 8px rgba(34,197,94,0.4);
+            background: #4ade80; border-radius: 50%;
+            border: 2px solid #C0392B;
+            box-shadow: 0 0 0 2px rgba(74,222,128,0.3), 0 0 8px rgba(74,222,128,0.4);
           }
           .wai-agent-name {
             margin: 0; font-size: 13px; font-weight: 700;
             color: #fff; line-height: 1.3;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.15);
           }
           .wai-agent-status {
             margin: 0; font-size: 10px; font-weight: 500;
-            color: rgba(255,255,255,0.8); letter-spacing: 0.01em;
+            color: rgba(255,255,255,0.92); letter-spacing: 0.01em;
           }
 
 
@@ -2757,7 +2763,7 @@ export default function AgentChat({
           .wai-messages {
             flex: 1; overflow-y: auto; min-height: 0;
             padding: 14px 12px;
-            background: linear-gradient(to bottom, #FAF5F2 0%, #fdf8f5 30%, #FFF8F5 100%);
+            background: transparent;
           }
           .wai-messages::-webkit-scrollbar { width: 3px; }
           .wai-messages::-webkit-scrollbar-thumb { background: #e8c9be; border-radius: 4px; }
@@ -2768,9 +2774,9 @@ export default function AgentChat({
           .wai-msg-user-row { justify-content: flex-end; }
           .wai-msg-avatar {
             width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
-            background: linear-gradient(135deg, #E35353 0%, #c43a3a 100%);
+            background: #2C2C2C;
             display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 2px 6px rgba(227,83,83,0.3);
+            box-shadow: 0 2px 6px rgba(44,44,44,0.2);
           }
 
           /* ── Bubbles ─────────────────────────────────── */
@@ -2780,21 +2786,21 @@ export default function AgentChat({
             line-height: 1.6;
           }
           .wai-bubble-ai {
-            background: #fff;
-            border: 1px solid #f0e4dd;
+            background: #FFFFFF;
+            border: 1px solid #E8E0D8;
             border-bottom-left-radius: 4px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06), 0 0 6px rgba(227,83,83,0.04);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
           }
           .wai-bubble-user {
-            background: linear-gradient(135deg, #1A1A1A 0%, #E35353 100%);
+            background: #2C2C2C;
             border-bottom-right-radius: 4px;
-            box-shadow: 0 3px 12px rgba(227,83,83,0.3);
+            box-shadow: 0 2px 8px rgba(44,44,44,0.25);
           }
           .wai-bubble-text {
             margin: 0; font-size: 12.5px; line-height: 1.6;
             white-space: pre-wrap; word-break: break-word;
           }
-          .wai-bubble-ai .wai-bubble-text { color: #1f2937; }
+          .wai-bubble-ai .wai-bubble-text { color: #2C2C2C; }
           .wai-bubble-user .wai-bubble-text { color: #fff; }
           .wai-time { display: block; margin-top: 5px; font-size: 10px; color: #9ca3af; }
           .wai-time-user { color: rgba(255,255,255,0.5); text-align: right; }
@@ -2802,7 +2808,7 @@ export default function AgentChat({
           /* ── Typing indicator ────────────────────────── */
           .wai-typing { display: flex; align-items: center; gap: 5px; padding: 12px 16px; }
           .wai-dot {
-            width: 7px; height: 7px; border-radius: 50%; background: #E35353;
+            width: 7px; height: 7px; border-radius: 50%; background: #C0392B;
             animation: wai-bounce 1.3s ease-in-out infinite;
           }
           @keyframes wai-bounce { 0%,80%,100%{transform:translateY(0);opacity:0.5} 40%{transform:translateY(-6px);opacity:1} }
@@ -2811,11 +2817,11 @@ export default function AgentChat({
           .wai-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
           .wai-chip {
             padding: 5px 12px; border-radius: 20px;
-            border: 1.5px solid #f0cdc3; background: #fdf0ec;
-            color: #1A1A1A; font-size: 11.5px; font-weight: 600;
+            border: 1.5px solid #C0392B; background: #FFFFFF;
+            color: #C0392B; font-size: 11.5px; font-weight: 600;
             cursor: pointer; transition: all 0.15s;
           }
-          .wai-chip:hover { background: #E35353; border-color: #E35353; color: #fff; transform: translateY(-1px); }
+          .wai-chip:hover { background: #C0392B; border-color: #C0392B; color: #fff; transform: translateY(-1px); }
           .wai-chip-muted { border-color: #d1d5db; background: #f9fafb; color: #6b7280; }
           .wai-chip-muted:hover { background: #6b7280; border-color: #6b7280; color: #fff; }
 
@@ -2851,37 +2857,37 @@ export default function AgentChat({
           /* ── Input bar ───────────────────────────────── */
           .wai-input-bar {
             flex-shrink: 0; padding: 10px 12px 12px;
-            border-top: 1px solid #f0e4dd; background: #FAF5F2;
+            border-top: 1px solid #f0e4dd; background: #F7F3EE;
           }
           .wai-input-wrap {
             display: flex; align-items: center; gap: 6px;
-            background: #fff; border: 1.5px solid #e8c9be;
+            background: #FFFFFF; border: 1.5px solid #DDD5CC;
             border-radius: 28px; padding: 6px 6px 6px 12px;
             transition: border-color 0.15s, box-shadow 0.15s;
           }
-          .wai-input-wrap:focus-within { border-color: #E35353; box-shadow: 0 0 0 3px rgba(227,83,83,0.12), 0 0 12px rgba(227,83,83,0.08); }
+          .wai-input-wrap:focus-within { border-color: #C0392B; box-shadow: 0 0 0 3px rgba(192,57,43,0.1), 0 0 12px rgba(192,57,43,0.06); }
           .wai-input {
             flex: 1; min-width: 0; border: none; outline: none;
-            background: transparent; font-size: 12.5px; color: #374151;
+            background: transparent; font-size: 12.5px; color: #2C2C2C;
           }
-          .wai-input::placeholder { color: #9ca3af; }
+          .wai-input::placeholder { color: #B0A89E; }
           .wai-mic-btn {
             background: none; border: none; cursor: pointer;
             padding: 3px; color: #9ca3af;
             display: flex; align-items: center; flex-shrink: 0;
             transition: color 0.15s;
           }
-          .wai-mic-btn:hover { color: #E35353; }
+          .wai-mic-btn:hover { color: #C0392B; }
           .wai-mic-active { color: #ef4444 !important; }
           .wai-send-btn {
             width: 34px; height: 34px; border-radius: 50%;
-            background: linear-gradient(135deg, #E35353 0%, #c43a3a 100%);
+            background: #C0392B;
             border: none; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
             flex-shrink: 0; transition: all 0.15s;
-            box-shadow: 0 2px 8px rgba(227,83,83,0.35);
+            box-shadow: 0 2px 8px rgba(192,57,43,0.3);
           }
-          .wai-send-btn:hover:not(:disabled) { transform: scale(1.08); box-shadow: 0 4px 14px rgba(227,83,83,0.45); }
+          .wai-send-btn:hover:not(:disabled) { transform: scale(1.08); box-shadow: 0 4px 14px rgba(192,57,43,0.4); }
           .wai-send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
           .wai-input-hint { margin: 5px 0 0; text-align: center; font-size: 9.5px; color: #d1d5db; letter-spacing: 0.02em; }
 
@@ -2890,12 +2896,12 @@ export default function AgentChat({
             display: flex; flex-direction: column;
             width: 45%; min-width: 260px;
             border-right: 1px solid #f0e4dd;
-            background: #FAF5F2; flex-shrink: 0;
+            background: #F7F3EE; flex-shrink: 0;
           }
           .wai-voice-transcript {
             flex: 1; overflow-y: auto; min-height: 0;
             padding: 14px 12px;
-            background: linear-gradient(to bottom, #FAF5F2 0%, #fdf8f5 30%, #FFF8F5 100%);
+            background: #F7F3EE;
           }
           .wai-voice-transcript::-webkit-scrollbar { width: 3px; }
           .wai-voice-transcript::-webkit-scrollbar-thumb { background: #e8c9be; border-radius: 4px; }
@@ -3139,7 +3145,7 @@ export default function AgentChat({
           .wai-product-actions { display: flex; gap: 6px; align-items: center; margin-top: auto; padding-top: 4px; }
           .wai-view-btn {
             width: 34px; height: 34px; border-radius: 10px;
-            border: 1.5px solid #f0ddd5; background: #FAF5F2;
+            border: 1.5px solid #f0ddd5; background: #F7F3EE;
             display: flex; align-items: center; justify-content: center;
             color: #6b7280; text-decoration: none; flex-shrink: 0;
             transition: all 0.15s;
@@ -3296,12 +3302,13 @@ export default function AgentChat({
             .wai-hub-card { padding: 14px 12px !important; }
             .wai-hub-card-icon-wrap { width: 44px !important; height: 44px !important; }
             .wai-hub-card-title { font-size: 13px !important; }
+            .wai-hub-card-desc { font-size: 10px !important; }
           }
 
           /* ── Landing Hub ──────────────────────────────── */
           .wai-hub {
             flex: 1; display: flex; align-items: center; justify-content: center;
-            background: linear-gradient(160deg, #FAF5F2 0%, #FFF8F5 50%, #EFD6C9 100%);
+            background: linear-gradient(160deg, #FFF0EE 0%, #FAE8E5 40%, #EFD0C9 100%);
             padding: 20px 16px; overflow-y: auto;
           }
           .wai-hub-inner {
@@ -3442,17 +3449,67 @@ export default function AgentChat({
           }
           .wai-mobile-tab-active svg { stroke: #E35353; }
 
+          /* ── Chat sub-header (back button bar inside consultation) ── */
+          .wai-chat-subheader {
+            display: flex; /* visible on all screen widths */
+            align-items: center; gap: 10px;
+            padding: 10px 14px 8px;
+            background: rgba(255,255,255,0.85);
+            border-bottom: 1px solid #f0e4dd;
+            flex-shrink: 0;
+            backdrop-filter: blur(8px);
+          }
+          .wai-chat-subheader-label {
+            font-size: 13px; font-weight: 700; color: #111827;
+            flex: 1;
+          }
+
+          /* ── Back button — circular icon style matching wai-offers-back ── */
+          .wai-back-btn {
+            display: flex; align-items: center; justify-content: center;
+            width: 32px; height: 32px; border-radius: 50%;
+            border: 1.5px solid #d1d5db; background: #fff;
+            color: #6b7280; cursor: pointer;
+            transition: all 0.15s; flex-shrink: 0;
+          }
+          .wai-back-btn:hover {
+            border-color: #E35353; color: #E35353;
+            background: rgba(227,83,83,0.06);
+          }
+
           /* ── Responsive: Mobile ──────────────────────── */
           @media (max-width: 640px) {
-            .wai-frame { border-radius: 0; border: none; box-shadow: none; }
-            .wai-panels { flex-direction: column; }
+            .wai-frame {
+              border-radius: 0; border: none; box-shadow: none;
+              /* Fill the full iframe / viewport on mobile */
+              height: 100%;
+              min-height: 100dvh;
+            }
+            .wai-root {
+              flex: 1 1 0;
+              height: 100%;
+              min-height: 0;
+            }
+            .wai-panels {
+              flex-direction: column;
+              flex: 1 1 0;
+              height: 0;       /* forces flex children to obey flex-basis, preventing overflow */
+              min-height: 0;
+              overflow: hidden;
+            }
 
             /* Header adjustments */
             .wai-header-menu { display: flex; }
             .wai-mobile-tabs { display: flex; }
 
-            /* Hub: mobile adjustments */
-            .wai-hub { padding: 20px 14px; }
+            /* Hub: mobile adjustments — ensure it fills the screen */
+            .wai-hub {
+              padding: 16px 14px;
+              min-height: 0;
+              align-items: flex-start;
+              overflow-y: auto;
+            }
+            .wai-hub-inner { gap: 10px; }
             .wai-hub-mic { width: 64px; height: 64px; }
             .wai-hub-mic svg { width: 28px; height: 28px; }
             .wai-hub-actions { gap: 10px; }
@@ -3460,6 +3517,17 @@ export default function AgentChat({
             .wai-hub-btn-icon { width: 40px; height: 40px; font-size: 20px; }
             .wai-hub-btn-title { font-size: 12px; }
             .wai-hub-btn-desc { font-size: 10px; }
+
+            /* Hub cards: make them a bit more compact on mobile */
+            .wai-hub-card { padding: 14px 12px !important; border-radius: 16px !important; }
+            .wai-hub-card-icon-wrap { width: 44px !important; height: 44px !important; }
+            .wai-hub-card-title { font-size: 13px !important; }
+            .wai-hub-card-desc { font-size: 10px !important; }
+            .wai-hub-card-perks li { font-size: 9px !important; }
+
+            /* Show back sub-header on mobile in consultation mode */
+            /* already visible on desktop too — just shrink it slightly on mobile */
+            .wai-chat-subheader { padding: 8px 10px 6px; }
 
             /* Hide both panels by default on mobile, show only active */
             .wai-chat {
@@ -3485,16 +3553,19 @@ export default function AgentChat({
             .wai-voice-mic-btn { width: 68px; height: 68px; }
             .wai-voice-mic-btn svg { width: 30px; height: 30px; }
 
+            /* Voice panel: comfortable mic zone on mobile */
+            .wai-voice-mic-zone { padding: 18px 16px 16px; gap: 10px; }
+
             /* Welcome screen: vertically centered, spacious layout */
             .wai-welcome {
-              padding: 42px 24px; gap: 12px; flex: 1; min-height: 0;
+              padding: 32px 20px; gap: 12px; flex: 1; min-height: 0;
+              justify-content: flex-start; overflow-y: auto;
             }
             .wai-welcome-icon {
-              width: 72px; height: 72px; margin-bottom: 8px;
-              box-shadow: 0 4px 20px rgba(20,184,166,0.18);
+              width: 64px; height: 64px; margin-bottom: 6px;
             }
-            .wai-welcome-icon svg { width: 36px; height: 36px; }
-            .wai-welcome-title { font-size: 22px; }
+            .wai-welcome-icon svg { width: 32px; height: 32px; }
+            .wai-welcome-title { font-size: 20px; }
             .wai-welcome-sub { font-size: 13px; }
             .wai-lang-grid {
               display: grid !important; grid-template-columns: 1fr 1fr;
@@ -3512,6 +3583,9 @@ export default function AgentChat({
             .wai-lang-greeting { font-size: 17px; }
             .wai-lang-name { font-size: 11px; }
 
+            /* Messages area: ensure it scrolls properly */
+            .wai-messages { padding: 12px 10px !important; }
+
             /* Input bar: match reference design */
             .wai-input-wrap {
               border-radius: 30px; padding: 5px 5px 5px 14px;
@@ -3521,6 +3595,7 @@ export default function AgentChat({
               width: 38px; height: 38px;
             }
             .wai-input-hint { display: none; }
+            .wai-input-bar { padding: 8px 10px 10px !important; }
 
             /* Product grid: single column, larger cards on mobile */
             .wai-product-grid { grid-template-columns: 1fr !important; gap: 14px; }
@@ -3535,6 +3610,10 @@ export default function AgentChat({
             .wai-best-badge { font-size: 10px !important; padding: 4px 10px !important; }
             .wai-product-tags { gap: 4px !important; }
             .wai-product-scroll { padding: 12px 16px !important; }
+
+            /* Offers scroll: proper mobile padding */
+            .wai-offers-header { padding: 10px 14px 8px !important; }
+            .wai-offers-title { font-size: 13px !important; }
           }
         `}</style>
         </div>

@@ -241,8 +241,22 @@ function buildSystemPrompt(
     `You are a professional, empathetic wellness sales consultant for StayOn Wellness. ` +
     `Your goal is to guide men toward the right Ayurvedic supplement through genuine, caring conversation.\n\n`
 
-  if (language !== 'en') {
-    prompt += `LANGUAGE: Respond entirely in ${languageName}. Never switch to another language mid-conversation.\n\n`
+  // ── Strict language enforcement ──────────────────────────────────────
+  if (language === 'hi') {
+    prompt +=
+      `LANGUAGE RULE (MANDATORY — NEVER BREAK THIS):\n` +
+      `The user chose Hindi. You MUST respond ENTIRELY in Hindi (Devanagari script) for the ENTIRE conversation.\n` +
+      `• Every response must be in Hindi. Do NOT switch to English even if the user types in English.\n` +
+      `• Only exception: product names, brand names ("StayOn"), and prices (₹) may stay in English.\n` +
+      `• Use warm Hindi words like "ji", "bhai", "theek hai" naturally.\n` +
+      `• NEVER mix Hindi and English sentences.\n\n`
+  } else {
+    prompt +=
+      `LANGUAGE RULE (MANDATORY — NEVER BREAK THIS):\n` +
+      `The user chose English. You MUST respond ENTIRELY in English for the ENTIRE conversation.\n` +
+      `• Every response must be in English. Do NOT switch to Hindi even if the user types in Hindi.\n` +
+      `• You may use "Namaste" as greeting and sprinkle "ji" or "bhai" for cultural warmth, but content stays English.\n` +
+      `• NEVER write full sentences in Hindi.\n\n`
   }
 
   prompt += flowPrompt
@@ -268,7 +282,7 @@ function buildSystemPrompt(
     `Rules for options:\n` +
     `• Keep each option under 8 words — short and tappable.\n` +
     `• Include a mix: at least one agreeing answer and one that asks for more info or shows hesitation.\n` +
-    `• Match the conversation language (Hindi options if responding in Hindi, etc.).\n` +
+    `• Options MUST match the user's selected language. Hindi user = all Hindi options. English user = all English options. Never mix..\n` +
     `• NEVER skip the [OPTIONS] block.\n\n` +
     `PRODUCT SIDEBAR (CONDITIONAL):\n` +
     `When you recommend or mention a specific product from the PRODUCT CATALOG, include a [PRODUCTS] block.\n` +
@@ -436,7 +450,7 @@ function detectContextProducts(
         // Find the primary product
         const primaryProduct = products.find(
           (p) => p.product_name.toLowerCase() === hi.primary_product.toLowerCase() ||
-                 p.product_id.toLowerCase() === hi.primary_product.toLowerCase()
+            p.product_id.toLowerCase() === hi.primary_product.toLowerCase()
         )
         if (primaryProduct) {
           matchedProductIds.add(primaryProduct.product_id)
@@ -450,7 +464,7 @@ function detectContextProducts(
         if (hi.supporting_product && hi.supporting_product !== '—' && hi.supporting_product !== '-') {
           const supportProduct = products.find(
             (p) => p.product_name.toLowerCase() === hi.supporting_product!.toLowerCase() ||
-                   p.product_id.toLowerCase() === hi.supporting_product!.toLowerCase()
+              p.product_id.toLowerCase() === hi.supporting_product!.toLowerCase()
           )
           if (supportProduct) {
             matchedProductIds.add(supportProduct.product_id)
