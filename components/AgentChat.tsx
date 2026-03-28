@@ -1823,71 +1823,64 @@ export default function AgentChat({
   // -- EMBED MODE: Two-panel layout ------------------
   if (isEmbedChat) {
 
-    // Show the new landing page when language not confirmed and no messages
+    // Show the landing page when language not confirmed and no messages
     if (!languageConfirmed && messages.length === 0) {
-      const greetingMap: Record<string, string> = { en: 'Hello', hi: 'नमस्ते' };
+      const langFlags: Record<string, string> = { en: 'GB', hi: 'IN' };
+      const langGreetings: Record<string, string> = { en: 'Hello', hi: 'नमस्ते' };
       return (
         <div className="wai-frame">
           <div className="wai-landing">
-            {/* ── Left branded panel ── */}
-            <div className="wai-landing-left">
-              <div className="wai-landing-left-content">
-                {/* Heart icon */}
-                <div className="wai-landing-heart">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" fill="white" />
-                  </svg>
-                </div>
 
-                {/* Title */}
-                <h1 className="wai-landing-title">Stay-On<br />Wellness</h1>
-                <p className="wai-landing-tagline">Your personal wellness companion, always available.</p>
-
-                {/* Decorative circles with AI image */}
-                <div className="wai-landing-circles">
-                  <div className="wai-landing-circle wai-landing-circle-1">
-                    <img src="/artificial-intelligence.png" alt="AI" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                  </div>
-                  <div className="wai-landing-circle wai-landing-circle-2">
-                    <img src="/artificial-intelligence.png" alt="AI" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', opacity: 0.7 }} />
-                  </div>
+            {/* ── Header bar ── */}
+            <div className="wai-landing-header">
+              <div className="wai-landing-header-left">
+                <div className="wai-landing-avatar">
+                  <img src="/Stay-On%20logo.png" alt="Stay-On Wellness" style={{ width: '100%', height: '100%', objectFit: 'contain', transform: 'scale(0.8)' }} />
                 </div>
-
-                {/* Online status */}
-                <div className="wai-landing-status">
-                  <span className="wai-landing-status-dot" />
-                  <span>Online — ready to talk</span>
-                </div>
+                <span className="wai-landing-header-name">Stay-On Wellness</span>
+              </div>
+              <div className="wai-landing-header-right">
+                <span className="wai-landing-online-badge">
+                  <span className="wai-landing-online-dot" />
+                  Online
+                </span>
+                <button type="button" className="wai-landing-menu-btn" aria-label="Menu">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
+                </button>
               </div>
             </div>
 
-            {/* ── Right language selection panel ── */}
-            <div className="wai-landing-right">
-              <div className="wai-landing-right-content">
-                <h2 className="wai-landing-choose-title">Choose your language</h2>
-                <p className="wai-landing-choose-sub">We speak your language</p>
+            {/* ── Centered content ── */}
+            <div className="wai-landing-body">
+              <h1 className="wai-landing-title">Hello 👋</h1>
+              <p className="wai-landing-subtitle">Choose your preferred language to begin</p>
 
-                <div className="wai-landing-lang-list">
-                  {greetingLanguages.map((lang) => {
-                    const greeting = greetingMap[lang.code] || lang.name;
-                    return (
-                      <button
-                        key={lang.code}
-                        type="button"
-                        className="wai-landing-lang-card"
-                        onClick={() => handleLanguageSelect(lang.code)}
-                      >
-                        <div className="wai-landing-lang-text">
-                          <span className="wai-landing-lang-greeting">{greeting}</span>
-                          <span className="wai-landing-lang-name">{lang.name}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <p className="wai-landing-privacy">Conversations are completely confidential</p>
+              <div className="wai-landing-lang-row">
+                {greetingLanguages.map((lang) => {
+                  const flag = langFlags[lang.code] || lang.code.toUpperCase();
+                  const greeting = langGreetings[lang.code] || lang.name;
+                  return (
+                    <button
+                      key={lang.code}
+                      type="button"
+                      className="wai-landing-lang-card"
+                      onClick={() => handleLanguageSelect(lang.code)}
+                    >
+                      <span className="wai-landing-lang-flag">{flag}</span>
+                      <span className="wai-landing-lang-greeting">{greeting}</span>
+                      <span className="wai-landing-lang-name">{lang.name}</span>
+                    </button>
+                  );
+                })}
               </div>
+            </div>
+
+            {/* ── Footer ── */}
+            <div className="wai-landing-footer">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
+              </svg>
+              <span>Private &amp; confidential</span>
             </div>
           </div>
 
@@ -1908,293 +1901,229 @@ export default function AgentChat({
 
             .wai-landing {
               display: flex;
-              flex-direction: row;
+              flex-direction: column;
               width: 100%;
               height: 100%;
+              background: linear-gradient(160deg, #6B1A14 0%, #8B2820 30%, #7A2018 60%, #5C1510 100%);
+              font-family: 'Montserrat', 'Dosis', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
               overflow: hidden;
               border-radius: 16px;
-              font-family: 'Montserrat', 'Dosis', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             }
 
-            /* ── Left panel ── */
-            .wai-landing-left {
-              width: 42%;
-              background: linear-gradient(180deg, #C0392B 0%, #B83224 50%, #A82D21 100%);
+            /* ── Header ── */
+            .wai-landing-header {
               display: flex;
-              flex-direction: column;
+              align-items: center;
               justify-content: space-between;
-              padding: 36px 28px 28px;
-              position: relative;
-              overflow: hidden;
+              padding: 16px 20px 12px;
+              flex-shrink: 0;
             }
-            .wai-landing-left-content {
+            .wai-landing-header-left {
               display: flex;
-              flex-direction: column;
-              height: 100%;
-              justify-content: space-between;
+              align-items: center;
+              gap: 10px;
             }
-
-            /* Heart icon */
-            .wai-landing-heart {
-              width: 48px; height: 48px; border-radius: 14px;
-              background: rgba(255,255,255,0.18);
+            .wai-landing-avatar {
+              width: 36px; height: 36px;
+              border-radius: 8px;
+              background: #fff;
               display: flex; align-items: center; justify-content: center;
-              backdrop-filter: blur(6px);
-              margin-bottom: 24px;
-              box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+              flex-shrink: 0;
             }
-
-            /* Title */
-            .wai-landing-title {
-              margin: 0 0 10px;
-              font-family: 'Dosis', 'Montserrat', sans-serif;
-              font-size: 32px;
-              font-weight: 800;
+            .wai-landing-header-name {
+              font-size: 14px;
+              font-weight: 700;
               color: #fff;
-              line-height: 1.15;
-              letter-spacing: -0.02em;
+              letter-spacing: 0.01em;
             }
-            .wai-landing-tagline {
-              margin: 0 0 28px;
-              font-size: 15px;
-              font-weight: 500;
-              color: rgba(255,255,255,0.85);
-              line-height: 1.5;
-            }
-
-            /* Decorative circles */
-            .wai-landing-circles {
-              position: relative;
-              flex: 1;
-              min-height: 80px;
+            .wai-landing-header-right {
               display: flex;
               align-items: center;
-              justify-content: center;
+              gap: 10px;
             }
-            .wai-landing-circle {
-              border-radius: 50%;
-              overflow: hidden;
-              position: absolute;
-              box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            }
-            .wai-landing-circle-1 {
-              width: 72px; height: 72px;
-              right: 30%; top: 10%;
-              opacity: 0.85;
-              animation: wai-circle-float 4s ease-in-out infinite;
-            }
-            .wai-landing-circle-2 {
-              width: 56px; height: 56px;
-              left: 15%; bottom: 15%;
-              opacity: 0.65;
-              animation: wai-circle-float 4s ease-in-out infinite 1.5s;
-            }
-            @keyframes wai-circle-float {
-              0%, 100% { transform: translateY(0); }
-              50% { transform: translateY(-8px); }
-            }
-
-            /* Online status */
-            .wai-landing-status {
+            .wai-landing-online-badge {
               display: flex;
               align-items: center;
-              gap: 8px;
-              font-size: 13px;
+              gap: 6px;
+              font-size: 12px;
               font-weight: 600;
-              color: rgba(255,255,255,0.95);
-              padding-top: 16px;
+              color: rgba(255,255,255,0.85);
             }
-            .wai-landing-status-dot {
-              width: 10px; height: 10px;
+            .wai-landing-online-dot {
+              width: 8px; height: 8px;
               border-radius: 50%;
               background: #4ade80;
-              box-shadow: 0 0 0 3px rgba(74,222,128,0.3), 0 0 10px rgba(74,222,128,0.4);
-              animation: wai-status-pulse 2s ease-in-out infinite;
+              box-shadow: 0 0 6px rgba(74,222,128,0.5);
+              animation: wai-landing-pulse 2s ease-in-out infinite;
             }
-            @keyframes wai-status-pulse {
-              0%, 100% { box-shadow: 0 0 0 3px rgba(74,222,128,0.3), 0 0 10px rgba(74,222,128,0.4); }
-              50% { box-shadow: 0 0 0 5px rgba(74,222,128,0.15), 0 0 18px rgba(74,222,128,0.3); }
+            @keyframes wai-landing-pulse {
+              0%, 100% { box-shadow: 0 0 6px rgba(74,222,128,0.5); }
+              50% { box-shadow: 0 0 12px rgba(74,222,128,0.3), 0 0 0 4px rgba(74,222,128,0.1); }
             }
-
-            /* ── Right panel ── */
-            .wai-landing-right {
-              flex: 1;
-              background: #FFFFFF;
+            .wai-landing-menu-btn {
+              background: none;
+              border: none;
+              cursor: pointer;
+              padding: 4px;
               display: flex;
+              align-items: center;
+              opacity: 0.7;
+              transition: opacity 0.15s;
+            }
+            .wai-landing-menu-btn:hover { opacity: 1; }
+
+            /* ── Body (centered content) ── */
+            .wai-landing-body {
+              flex: 1;
+              display: flex;
+              flex-direction: column;
               align-items: center;
               justify-content: center;
-              padding: 36px 32px;
+              padding: 0 24px;
+              text-align: center;
+              gap: 0;
             }
-            .wai-landing-right-content {
-              width: 100%;
-              max-width: 360px;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-            }
-
-            /* Title */
-            .wai-landing-choose-title {
-              margin: 0 0 6px;
+            .wai-landing-title {
+              margin: 0 0 12px;
               font-family: 'Dosis', 'Montserrat', sans-serif;
-              font-size: 26px;
+              font-size: 38px;
               font-weight: 800;
-              color: #1A1A1A;
-              text-align: center;
+              color: #fff;
+              letter-spacing: -0.02em;
             }
-            .wai-landing-choose-sub {
-              margin: 0 0 28px;
-              font-size: 14px;
-              color: #9ca3af;
-              text-align: center;
+            .wai-landing-subtitle {
+              margin: 0 0 36px;
+              font-size: 15px;
+              font-weight: 400;
+              color: rgba(255,255,255,0.6);
+              letter-spacing: 0.01em;
             }
 
-            /* Language cards */
-            .wai-landing-lang-list {
-              width: 100%;
+            /* ── Language cards row ── */
+            .wai-landing-lang-row {
               display: flex;
-              flex-direction: column;
-              gap: 14px;
-              margin-bottom: 24px;
+              gap: 16px;
+              justify-content: center;
+              width: 100%;
+              max-width: 420px;
             }
             .wai-landing-lang-card {
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              width: 100%;
-              padding: 18px 20px;
-              border-radius: 14px;
-              border: 2px solid #e5e7eb;
-              background: #fafafa;
-              cursor: pointer;
-              transition: all 0.2s ease;
-              text-align: left;
-            }
-            .wai-landing-lang-card:hover {
-              border-color: #E35353;
-              background: rgba(227,83,83,0.03);
-              transform: translateY(-1px);
-              box-shadow: 0 4px 16px rgba(227,83,83,0.12);
-            }
-            .wai-landing-lang-card-selected {
-              border-color: #C0392B !important;
-              background: rgba(192,57,43,0.04) !important;
-              box-shadow: 0 0 0 1px #C0392B, 0 4px 16px rgba(192,57,43,0.15) !important;
-            }
-            .wai-landing-lang-text {
+              flex: 1;
               display: flex;
               flex-direction: column;
-              gap: 2px;
+              align-items: center;
+              gap: 8px;
+              padding: 24px 16px 20px;
+              border-radius: 16px;
+              border: 1.5px solid rgba(255,255,255,0.15);
+              background: rgba(255,255,255,0.08);
+              backdrop-filter: blur(12px);
+              -webkit-backdrop-filter: blur(12px);
+              cursor: pointer;
+              transition: all 0.25s ease;
+              text-align: center;
+            }
+            .wai-landing-lang-card:hover {
+              background: rgba(255,255,255,0.14);
+              border-color: rgba(255,255,255,0.3);
+              transform: translateY(-2px);
+              box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+            }
+            .wai-landing-lang-card:active {
+              transform: translateY(0);
+            }
+            .wai-landing-lang-flag {
+              font-size: 20px;
+              font-weight: 800;
+              color: rgba(255,255,255,0.85);
+              letter-spacing: 0.08em;
             }
             .wai-landing-lang-greeting {
-              font-size: 18px;
+              font-size: 16px;
               font-weight: 700;
-              color: #111827;
+              color: #fff;
             }
             .wai-landing-lang-name {
-              font-size: 13px;
-              color: #9ca3af;
+              font-size: 12px;
+              color: rgba(255,255,255,0.5);
               font-weight: 400;
             }
-            .wai-landing-lang-check {
-              width: 28px; height: 28px;
-              border-radius: 50%;
-              background: #C0392B;
-              color: #fff;
+
+            /* ── Footer ── */
+            .wai-landing-footer {
               display: flex;
               align-items: center;
               justify-content: center;
-              flex-shrink: 0;
-              box-shadow: 0 2px 8px rgba(192,57,43,0.3);
-            }
-
-            /* Continue button */
-            .wai-landing-continue {
-              width: 100%;
-              padding: 16px 24px;
-              border-radius: 14px;
-              border: none;
-              background: linear-gradient(135deg, #C0392B 0%, #E35353 100%);
-              color: #fff;
-              font-family: 'Montserrat', 'Dosis', sans-serif;
-              font-size: 16px;
-              font-weight: 700;
-              cursor: pointer;
-              transition: all 0.2s ease;
-              box-shadow: 0 4px 20px rgba(192,57,43,0.35);
-              margin-bottom: 20px;
-              letter-spacing: 0.02em;
-            }
-            .wai-landing-continue:hover {
-              background: linear-gradient(135deg, #A82D21 0%, #C0392B 100%);
-              transform: translateY(-1px);
-              box-shadow: 0 6px 24px rgba(192,57,43,0.45);
-            }
-            .wai-landing-continue:active {
-              transform: translateY(0);
-              box-shadow: 0 2px 12px rgba(192,57,43,0.3);
-            }
-
-            /* Privacy note */
-            .wai-landing-privacy {
-              margin: 0;
+              gap: 6px;
+              padding: 16px 20px 20px;
               font-size: 12px;
-              color: #C0392B;
-              text-align: center;
+              color: rgba(255,255,255,0.4);
               font-weight: 500;
-              opacity: 0.7;
+              flex-shrink: 0;
             }
 
-            /* ── Mobile responsive ── */
+            /* ── Mobile ── */
             @media (max-width: 600px) {
+              .wai-frame {
+                border-radius: 0;
+                border: none;
+                box-shadow: none;
+              }
               .wai-landing {
-                flex-direction: column;
                 border-radius: 0;
               }
-              .wai-landing-left {
-                width: 100%;
-                padding: 24px 20px 20px;
-                min-height: 180px;
+              .wai-landing-header {
+                padding: 14px 16px 10px;
+              }
+              .wai-landing-avatar {
+                width: 32px; height: 32px;
+              }
+              .wai-landing-avatar svg {
+                width: 15px; height: 15px;
+              }
+              .wai-landing-header-name {
+                font-size: 13px;
               }
               .wai-landing-title {
-                font-size: 24px;
+                font-size: 30px;
               }
-              .wai-landing-tagline {
-                font-size: 12px;
-                margin-bottom: 16px;
+              .wai-landing-subtitle {
+                font-size: 13px;
+                margin-bottom: 28px;
               }
-              .wai-landing-circles {
-                min-height: 50px;
-              }
-              .wai-landing-circle-1 {
-                width: 48px; height: 48px;
-              }
-              .wai-landing-circle-2 {
-                width: 38px; height: 38px;
-              }
-              .wai-landing-heart {
-                width: 40px; height: 40px;
-                margin-bottom: 14px;
-              }
-              .wai-landing-right {
-                padding: 24px 20px;
-              }
-              .wai-landing-choose-title {
-                font-size: 20px;
-              }
-              .wai-landing-choose-sub {
-                font-size: 12px;
-                margin-bottom: 18px;
+              .wai-landing-lang-row {
+                gap: 12px;
+                max-width: 320px;
+                padding: 0 4px;
               }
               .wai-landing-lang-card {
-                padding: 14px 16px;
+                padding: 20px 12px 16px;
+                border-radius: 14px;
+              }
+              .wai-landing-lang-flag {
+                font-size: 18px;
               }
               .wai-landing-lang-greeting {
-                font-size: 16px;
+                font-size: 15px;
               }
-              .wai-landing-continue {
-                padding: 14px 20px;
-                font-size: 14px;
+              .wai-landing-footer {
+                padding: 12px 16px 16px;
+              }
+            }
+
+            @media (max-width: 380px) {
+              .wai-landing-title {
+                font-size: 26px;
+              }
+              .wai-landing-subtitle {
+                font-size: 12px;
+                margin-bottom: 24px;
+              }
+              .wai-landing-lang-row {
+                gap: 10px;
+              }
+              .wai-landing-lang-card {
+                padding: 16px 10px 14px;
               }
             }
           `}</style>
@@ -2210,11 +2139,7 @@ export default function AgentChat({
           <div className="wai-header">
             <div style={{ position: 'relative', flexShrink: 0 }}>
               <div className="wai-avatar">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 3C9 3 6 6 7 10c.7 2.5 2.5 4.5 5 6.5 2.5-2 4.3-4 5-6.5 1-4-2-7-5-7z" fill="white" opacity="0.95" />
-                  <path d="M12 16.5V21" stroke="white" strokeWidth="1.8" strokeLinecap="round" opacity="0.75" />
-                  <path d="M9 19.5c1 .5 2 .5 3 1 1-.5 2-.5 3-1" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.55" />
-                </svg>
+                <img src="/Stay-On%20logo.png" alt="Stay-On" style={{ width: '28px', height: '28px', objectFit: 'contain', borderRadius: '6px' }} />
               </div>
               <span className="wai-online-dot" />
             </div>
@@ -3127,6 +3052,9 @@ export default function AgentChat({
             backdrop-filter: blur(4px);
             animation: wai-avatar-breathe 3s ease-in-out infinite;
           }
+          .wai-avatar img {
+            transform: scale(0.8);
+          }
           .wai-online-dot {
             position: absolute; bottom: 1px; right: 1px;
             width: 10px; height: 10px;
@@ -3892,10 +3820,11 @@ export default function AgentChat({
             .wai-hub {
               padding: 16px 14px;
               min-height: 0;
-              align-items: flex-start;
+              align-items: center;
+              justify-content: center;
               overflow-y: auto;
             }
-            .wai-hub-inner { gap: 10px; }
+            .wai-hub-inner { gap: 10px; width: 100%; max-width: 360px; }
             .wai-hub-mic { width: 64px; height: 64px; }
             .wai-hub-mic svg { width: 28px; height: 28px; }
             .wai-hub-actions { gap: 10px; }
@@ -3983,8 +3912,9 @@ export default function AgentChat({
             .wai-input-hint { display: none; }
             .wai-input-bar { padding: 8px 10px 10px !important; }
 
-            /* Product grid: single column, larger cards on mobile */
-            .wai-product-grid { grid-template-columns: 1fr !important; gap: 14px; }
+            /* Product grid: single column, centered, larger cards on mobile */
+            .wai-product-grid { grid-template-columns: 1fr !important; gap: 14px; max-width: 400px; margin: 0 auto; }
+            .wai-product-scroll { display: flex; flex-direction: column; align-items: center; }
             .wai-product-img { height: 160px !important; }
             .wai-product-img-placeholder { height: 160px !important; font-size: 36px !important; }
             .wai-product-body { padding: 12px 14px 14px !important; gap: 5px !important; }
