@@ -167,7 +167,20 @@ export default function AgentChat({
   }
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesEndRef.current) {
+      // Find the specific container that is scrollable within the chat widget
+      const scrollableParent = messagesEndRef.current.closest('.wai-messages, .wai-voice-transcript, .overflow-y-auto');
+      if (scrollableParent) {
+        // Set the scroll top of the exact container, preventing the whole website from jumping
+        scrollableParent.scrollTo({
+          top: scrollableParent.scrollHeight,
+          behavior: 'smooth'
+        });
+      } else {
+        // Fallback for dashboard/standalone view with improved block behavior
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
   };
 
   const handleCategoryClick = (category: string) => {
