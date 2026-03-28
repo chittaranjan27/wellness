@@ -1841,7 +1841,7 @@ export default function AgentChat({
 
                 {/* Title */}
                 <h1 className="wai-landing-title">Stay-On<br />Wellness</h1>
-                <p className="wai-landing-tagline">Your safe space to talk, reflect and grow.</p>
+                <p className="wai-landing-tagline">Your personal wellness companion, always available.</p>
 
                 {/* Decorative circles with AI image */}
                 <div className="wai-landing-circles">
@@ -1956,7 +1956,7 @@ export default function AgentChat({
             }
             .wai-landing-tagline {
               margin: 0 0 28px;
-              font-size: 14px;
+              font-size: 15px;
               font-weight: 500;
               color: rgba(255,255,255,0.85);
               line-height: 1.5;
