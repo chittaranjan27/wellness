@@ -1823,6 +1823,385 @@ export default function AgentChat({
   // -- EMBED MODE: Two-panel layout ------------------
   if (isEmbedChat) {
 
+    // Show the new landing page when language not confirmed and no messages
+    if (!languageConfirmed && messages.length === 0) {
+      const greetingMap: Record<string, string> = { en: 'Hello', hi: 'नमस्ते' };
+      return (
+        <div className="wai-frame">
+          <div className="wai-landing">
+            {/* ── Left branded panel ── */}
+            <div className="wai-landing-left">
+              <div className="wai-landing-left-content">
+                {/* Heart icon */}
+                <div className="wai-landing-heart">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" fill="white" />
+                  </svg>
+                </div>
+
+                {/* Title */}
+                <h1 className="wai-landing-title">Stay-On<br />Wellness</h1>
+                <p className="wai-landing-tagline">Your safe space to talk, reflect and grow.</p>
+
+                {/* Decorative circles with AI image */}
+                <div className="wai-landing-circles">
+                  <div className="wai-landing-circle wai-landing-circle-1">
+                    <img src="/artificial-intelligence.png" alt="AI" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                  </div>
+                  <div className="wai-landing-circle wai-landing-circle-2">
+                    <img src="/artificial-intelligence.png" alt="AI" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', opacity: 0.7 }} />
+                  </div>
+                </div>
+
+                {/* Online status */}
+                <div className="wai-landing-status">
+                  <span className="wai-landing-status-dot" />
+                  <span>Online — ready to talk</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Right language selection panel ── */}
+            <div className="wai-landing-right">
+              <div className="wai-landing-right-content">
+                <h2 className="wai-landing-choose-title">Choose your language</h2>
+                <p className="wai-landing-choose-sub">We speak your language</p>
+
+                <div className="wai-landing-lang-list">
+                  {greetingLanguages.map((lang) => {
+                    const greeting = greetingMap[lang.code] || lang.name;
+                    return (
+                      <button
+                        key={lang.code}
+                        type="button"
+                        className="wai-landing-lang-card"
+                        onClick={() => handleLanguageSelect(lang.code)}
+                      >
+                        <div className="wai-landing-lang-text">
+                          <span className="wai-landing-lang-greeting">{greeting}</span>
+                          <span className="wai-landing-lang-name">{lang.name}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p className="wai-landing-privacy">Conversations are completely confidential</p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Landing page styles ── */}
+          <style>{`
+            @import url('https://fonts.googleapis.com/css2?family=Dosis:wght@400;600;700;800&family=Montserrat:wght@400;500;600;700;800&display=swap');
+
+            .wai-frame {
+              width: 100%;
+              height: 100%;
+              overflow: hidden;
+              display: flex;
+              flex-direction: column;
+              border-radius: 16px;
+              border: 1.5px solid rgba(192,57,43,0.25);
+              box-shadow: 0 0 24px rgba(192,57,43,0.18), 0 0 48px rgba(192,57,43,0.07);
+            }
+
+            .wai-landing {
+              display: flex;
+              flex-direction: row;
+              width: 100%;
+              height: 100%;
+              overflow: hidden;
+              border-radius: 16px;
+              font-family: 'Montserrat', 'Dosis', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            }
+
+            /* ── Left panel ── */
+            .wai-landing-left {
+              width: 42%;
+              background: linear-gradient(180deg, #C0392B 0%, #B83224 50%, #A82D21 100%);
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              padding: 36px 28px 28px;
+              position: relative;
+              overflow: hidden;
+            }
+            .wai-landing-left-content {
+              display: flex;
+              flex-direction: column;
+              height: 100%;
+              justify-content: space-between;
+            }
+
+            /* Heart icon */
+            .wai-landing-heart {
+              width: 48px; height: 48px; border-radius: 14px;
+              background: rgba(255,255,255,0.18);
+              display: flex; align-items: center; justify-content: center;
+              backdrop-filter: blur(6px);
+              margin-bottom: 24px;
+              box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            }
+
+            /* Title */
+            .wai-landing-title {
+              margin: 0 0 10px;
+              font-family: 'Dosis', 'Montserrat', sans-serif;
+              font-size: 32px;
+              font-weight: 800;
+              color: #fff;
+              line-height: 1.15;
+              letter-spacing: -0.02em;
+            }
+            .wai-landing-tagline {
+              margin: 0 0 28px;
+              font-size: 14px;
+              font-weight: 500;
+              color: rgba(255,255,255,0.85);
+              line-height: 1.5;
+            }
+
+            /* Decorative circles */
+            .wai-landing-circles {
+              position: relative;
+              flex: 1;
+              min-height: 80px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .wai-landing-circle {
+              border-radius: 50%;
+              overflow: hidden;
+              position: absolute;
+              box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            }
+            .wai-landing-circle-1 {
+              width: 72px; height: 72px;
+              right: 30%; top: 10%;
+              opacity: 0.85;
+              animation: wai-circle-float 4s ease-in-out infinite;
+            }
+            .wai-landing-circle-2 {
+              width: 56px; height: 56px;
+              left: 15%; bottom: 15%;
+              opacity: 0.65;
+              animation: wai-circle-float 4s ease-in-out infinite 1.5s;
+            }
+            @keyframes wai-circle-float {
+              0%, 100% { transform: translateY(0); }
+              50% { transform: translateY(-8px); }
+            }
+
+            /* Online status */
+            .wai-landing-status {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              font-size: 13px;
+              font-weight: 600;
+              color: rgba(255,255,255,0.95);
+              padding-top: 16px;
+            }
+            .wai-landing-status-dot {
+              width: 10px; height: 10px;
+              border-radius: 50%;
+              background: #4ade80;
+              box-shadow: 0 0 0 3px rgba(74,222,128,0.3), 0 0 10px rgba(74,222,128,0.4);
+              animation: wai-status-pulse 2s ease-in-out infinite;
+            }
+            @keyframes wai-status-pulse {
+              0%, 100% { box-shadow: 0 0 0 3px rgba(74,222,128,0.3), 0 0 10px rgba(74,222,128,0.4); }
+              50% { box-shadow: 0 0 0 5px rgba(74,222,128,0.15), 0 0 18px rgba(74,222,128,0.3); }
+            }
+
+            /* ── Right panel ── */
+            .wai-landing-right {
+              flex: 1;
+              background: #FFFFFF;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              padding: 36px 32px;
+            }
+            .wai-landing-right-content {
+              width: 100%;
+              max-width: 360px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+            }
+
+            /* Title */
+            .wai-landing-choose-title {
+              margin: 0 0 6px;
+              font-family: 'Dosis', 'Montserrat', sans-serif;
+              font-size: 26px;
+              font-weight: 800;
+              color: #1A1A1A;
+              text-align: center;
+            }
+            .wai-landing-choose-sub {
+              margin: 0 0 28px;
+              font-size: 14px;
+              color: #9ca3af;
+              text-align: center;
+            }
+
+            /* Language cards */
+            .wai-landing-lang-list {
+              width: 100%;
+              display: flex;
+              flex-direction: column;
+              gap: 14px;
+              margin-bottom: 24px;
+            }
+            .wai-landing-lang-card {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              width: 100%;
+              padding: 18px 20px;
+              border-radius: 14px;
+              border: 2px solid #e5e7eb;
+              background: #fafafa;
+              cursor: pointer;
+              transition: all 0.2s ease;
+              text-align: left;
+            }
+            .wai-landing-lang-card:hover {
+              border-color: #E35353;
+              background: rgba(227,83,83,0.03);
+              transform: translateY(-1px);
+              box-shadow: 0 4px 16px rgba(227,83,83,0.12);
+            }
+            .wai-landing-lang-card-selected {
+              border-color: #C0392B !important;
+              background: rgba(192,57,43,0.04) !important;
+              box-shadow: 0 0 0 1px #C0392B, 0 4px 16px rgba(192,57,43,0.15) !important;
+            }
+            .wai-landing-lang-text {
+              display: flex;
+              flex-direction: column;
+              gap: 2px;
+            }
+            .wai-landing-lang-greeting {
+              font-size: 18px;
+              font-weight: 700;
+              color: #111827;
+            }
+            .wai-landing-lang-name {
+              font-size: 13px;
+              color: #9ca3af;
+              font-weight: 400;
+            }
+            .wai-landing-lang-check {
+              width: 28px; height: 28px;
+              border-radius: 50%;
+              background: #C0392B;
+              color: #fff;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              flex-shrink: 0;
+              box-shadow: 0 2px 8px rgba(192,57,43,0.3);
+            }
+
+            /* Continue button */
+            .wai-landing-continue {
+              width: 100%;
+              padding: 16px 24px;
+              border-radius: 14px;
+              border: none;
+              background: linear-gradient(135deg, #C0392B 0%, #E35353 100%);
+              color: #fff;
+              font-family: 'Montserrat', 'Dosis', sans-serif;
+              font-size: 16px;
+              font-weight: 700;
+              cursor: pointer;
+              transition: all 0.2s ease;
+              box-shadow: 0 4px 20px rgba(192,57,43,0.35);
+              margin-bottom: 20px;
+              letter-spacing: 0.02em;
+            }
+            .wai-landing-continue:hover {
+              background: linear-gradient(135deg, #A82D21 0%, #C0392B 100%);
+              transform: translateY(-1px);
+              box-shadow: 0 6px 24px rgba(192,57,43,0.45);
+            }
+            .wai-landing-continue:active {
+              transform: translateY(0);
+              box-shadow: 0 2px 12px rgba(192,57,43,0.3);
+            }
+
+            /* Privacy note */
+            .wai-landing-privacy {
+              margin: 0;
+              font-size: 12px;
+              color: #C0392B;
+              text-align: center;
+              font-weight: 500;
+              opacity: 0.7;
+            }
+
+            /* ── Mobile responsive ── */
+            @media (max-width: 600px) {
+              .wai-landing {
+                flex-direction: column;
+                border-radius: 0;
+              }
+              .wai-landing-left {
+                width: 100%;
+                padding: 24px 20px 20px;
+                min-height: 180px;
+              }
+              .wai-landing-title {
+                font-size: 24px;
+              }
+              .wai-landing-tagline {
+                font-size: 12px;
+                margin-bottom: 16px;
+              }
+              .wai-landing-circles {
+                min-height: 50px;
+              }
+              .wai-landing-circle-1 {
+                width: 48px; height: 48px;
+              }
+              .wai-landing-circle-2 {
+                width: 38px; height: 38px;
+              }
+              .wai-landing-heart {
+                width: 40px; height: 40px;
+                margin-bottom: 14px;
+              }
+              .wai-landing-right {
+                padding: 24px 20px;
+              }
+              .wai-landing-choose-title {
+                font-size: 20px;
+              }
+              .wai-landing-choose-sub {
+                font-size: 12px;
+                margin-bottom: 18px;
+              }
+              .wai-landing-lang-card {
+                padding: 14px 16px;
+              }
+              .wai-landing-lang-greeting {
+                font-size: 16px;
+              }
+              .wai-landing-continue {
+                padding: 14px 20px;
+                font-size: 14px;
+              }
+            }
+          `}</style>
+        </div>
+      );
+    }
+
     return (
       <div className="wai-frame">
         <div className="wai-root">
@@ -1859,12 +2238,6 @@ export default function AgentChat({
                   Picks
                 </button>
               </div>
-            )}
-            {/* Mobile: menu dots (shown before language confirmed) */}
-            {!languageConfirmed && (
-              <button type="button" className="wai-header-menu" aria-label="Menu">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
-              </button>
             )}
           </div>
 
@@ -2351,32 +2724,45 @@ export default function AgentChat({
                 <div className="wai-messages">
                   <div className="wai-messages-inner">
                     {messages.length === 0 ? (
-                      /* Language selector */
-                      <div className="wai-welcome">
-                        <div className="wai-welcome-icon">
-                          <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" fill="#14b8a6" />
-                          </svg>
+                      /* If language already confirmed, show a starting state; otherwise show language selector */
+                      languageConfirmed ? (
+                        <div className="wai-consultation-starting">
+                          <div className="wai-typing" style={{ justifyContent: 'center', padding: '32px 20px' }}>
+                            <span className="wai-dot" style={{ animationDelay: '0ms' }} />
+                            <span className="wai-dot" style={{ animationDelay: '160ms' }} />
+                            <span className="wai-dot" style={{ animationDelay: '320ms' }} />
+                          </div>
+                          <p style={{ margin: '0 0 24px', textAlign: 'center', fontSize: '13px', color: '#9ca3af' }}>
+                            Starting your consultation…
+                          </p>
                         </div>
-                        <h3 className="wai-welcome-title">👋 Hello</h3>
-                        <p className="wai-welcome-sub">Choose your preferred language to begin</p>
-                        <div className="wai-lang-grid">
-                          {greetingLanguages.map((lang) => {
-                            const greetingMap: Record<string, string> = {
-                              en: 'Hello', hi: 'नमस्ते', ur: 'السلام عليکم', bn: 'নমস্কার', ar: 'مرحباً',
-                            };
-                            const greeting = greetingMap[lang.code] || lang.name;
-                            const isRtl = lang.code === 'ur' || lang.code === 'ar';
-                            return (
-                              <button key={lang.code} onClick={() => handleLanguageSelect(lang.code)}
-                                dir={isRtl ? 'rtl' : 'ltr'} className="wai-lang-btn">
-                                <span className="wai-lang-greeting">{greeting}</span>
-                                <span className="wai-lang-name">{lang.name}</span>
-                              </button>
-                            );
-                          })}
+                      ) : (
+                        <div className="wai-welcome">
+                          <div className="wai-welcome-icon">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" fill="#14b8a6" />
+                            </svg>
+                          </div>
+                          <h3 className="wai-welcome-title">👋 Hello</h3>
+                          <p className="wai-welcome-sub">Choose your preferred language to begin</p>
+                          <div className="wai-lang-grid">
+                            {greetingLanguages.map((lang) => {
+                              const greetingMap: Record<string, string> = {
+                                en: 'Hello', hi: 'नमस्ते', ur: 'السلام عليکم', bn: 'নমস্কার', ar: 'مرحباً',
+                              };
+                              const greeting = greetingMap[lang.code] || lang.name;
+                              const isRtl = lang.code === 'ur' || lang.code === 'ar';
+                              return (
+                                <button key={lang.code} onClick={() => handleLanguageSelect(lang.code)}
+                                  dir={isRtl ? 'rtl' : 'ltr'} className="wai-lang-btn">
+                                  <span className="wai-lang-greeting">{greeting}</span>
+                                  <span className="wai-lang-name">{lang.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
+                      )
                     ) : (
                       messages.map((message) => {
                         const isUser = message.role === 'user';
