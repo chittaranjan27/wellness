@@ -2440,6 +2440,44 @@ export default function AgentChat({
 
                 {/* Product grid / loading / empty */}
                 <div className="wai-offers-scroll">
+
+                  {/* ── Promotional Offer Banners ── */}
+                  <div className="wai-promo-banners">
+
+                    {/* Banner 1: Free Delivery */}
+                    <div className="wai-promo-banner wai-promo-banner-delivery">
+                      <div className="wai-promo-icon-wrap wai-promo-icon-delivery">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="1" y="3" width="15" height="13" rx="2" />
+                          <path d="M16 8h4l3 5v3h-7V8z" />
+                          <circle cx="5.5" cy="18.5" r="2.5" />
+                          <circle cx="18.5" cy="18.5" r="2.5" />
+                        </svg>
+                      </div>
+                      <div className="wai-promo-text">
+                        <p className="wai-promo-title">Free Delivery</p>
+                        <p className="wai-promo-desc">On orders above <strong>₹550</strong></p>
+                      </div>
+                      <div className="wai-promo-badge wai-promo-badge-delivery">FREE</div>
+                    </div>
+
+                    {/* Banner 2: Discount Code */}
+                    <div className="wai-promo-banner wai-promo-banner-discount">
+                      <div className="wai-promo-icon-wrap wai-promo-icon-discount">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" />
+                          <line x1="7" y1="7" x2="7.01" y2="7" />
+                        </svg>
+                      </div>
+                      <div className="wai-promo-text">
+                        <p className="wai-promo-title">Flat 10% Off</p>
+                        <p className="wai-promo-desc">Use code <span className="wai-promo-code">SAVE10</span> at checkout</p>
+                      </div>
+                      <div className="wai-promo-badge wai-promo-badge-discount">10%</div>
+                    </div>
+
+                  </div>
+
                   {dbProductsLoading ? (
                     <div className="wai-offers-loading">
                       <div className="wai-offers-spinner" />
@@ -3619,6 +3657,87 @@ export default function AgentChat({
             align-items: center; justify-content: center;
             gap: 10px; padding: 40px 20px;
             color: #6b7280; font-size: 13px; text-align: center;
+          }
+
+          /* ── Promotional Banners ───────────────────────── */
+          .wai-promo-banners {
+            display: flex; flex-direction: column; gap: 10px;
+            margin-bottom: 16px;
+          }
+          .wai-promo-banner {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 14px; border-radius: 14px;
+            position: relative; overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: default;
+          }
+          .wai-promo-banner:hover { transform: translateY(-2px); }
+          .wai-promo-banner::before {
+            content: ''; position: absolute; inset: 0;
+            background: inherit; opacity: 0; z-index: 0;
+          }
+
+          /* Delivery banner */
+          .wai-promo-banner-delivery {
+            background: linear-gradient(120deg, #fff7ed 0%, #ffedd5 60%, #fed7aa 100%);
+            border: 1.5px solid rgba(251,146,60,0.35);
+            box-shadow: 0 3px 14px rgba(251,146,60,0.15);
+          }
+          .wai-promo-banner-delivery:hover { box-shadow: 0 6px 20px rgba(251,146,60,0.28); }
+          .wai-promo-icon-delivery {
+            background: linear-gradient(135deg, #f97316, #fb923c);
+            box-shadow: 0 3px 10px rgba(249,115,22,0.4);
+          }
+          .wai-promo-badge-delivery {
+            background: linear-gradient(135deg, #f97316, #fb923c);
+            box-shadow: 0 2px 8px rgba(249,115,22,0.35);
+          }
+
+          /* Discount banner */
+          .wai-promo-banner-discount {
+            background: linear-gradient(120deg, #fdf4ff 0%, #fae8ff 60%, #f3e8ff 100%);
+            border: 1.5px solid rgba(192,132,252,0.35);
+            box-shadow: 0 3px 14px rgba(168,85,247,0.12);
+          }
+          .wai-promo-banner-discount:hover { box-shadow: 0 6px 20px rgba(168,85,247,0.25); }
+          .wai-promo-icon-discount {
+            background: linear-gradient(135deg, #9333ea, #a855f7);
+            box-shadow: 0 3px 10px rgba(147,51,234,0.4);
+          }
+          .wai-promo-badge-discount {
+            background: linear-gradient(135deg, #9333ea, #a855f7);
+            box-shadow: 0 2px 8px rgba(147,51,234,0.35);
+          }
+
+          /* Shared icon + badge + text */
+          .wai-promo-icon-wrap {
+            width: 40px; height: 40px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; color: #fff;
+          }
+          .wai-promo-text { flex: 1; min-width: 0; }
+          .wai-promo-title {
+            margin: 0; font-size: 13px; font-weight: 800;
+            color: #111827; letter-spacing: -0.01em;
+          }
+          .wai-promo-desc {
+            margin: 2px 0 0; font-size: 11px; color: #6b7280; line-height: 1.4;
+          }
+          .wai-promo-code {
+            display: inline-block;
+            padding: 1px 7px; border-radius: 6px;
+            background: rgba(147,51,234,0.12); color: #7e22ce;
+            font-family: monospace; font-weight: 700; font-size: 11px;
+            border: 1px dashed rgba(147,51,234,0.35);
+            letter-spacing: 0.04em;
+          }
+          .wai-promo-badge {
+            flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            min-width: 38px; height: 26px;
+            border-radius: 20px; padding: 0 8px;
+            font-size: 10px; font-weight: 900;
+            color: #fff; letter-spacing: 0.03em;
           }
           @media (max-width: 640px) {
             .wai-offers-grid { grid-template-columns: 1fr !important; gap: 14px; }
