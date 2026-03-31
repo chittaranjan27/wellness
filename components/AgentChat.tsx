@@ -533,7 +533,7 @@ export default function AgentChat({
 
   const promptForStage = (stage: ProfileStage) => {
     if (!stage) return;
-    // Only name is prompted at conversation start; email/otp are used after report.
+    // Only name is prompted at conversation start; email/otp are used after report.  
     const stageMap: Record<string, string> = {
       name: t('namePrompt'),
       email: t('emailPrompt'),
@@ -1619,10 +1619,10 @@ export default function AgentChat({
             // Only add suggestions during consultation (no products); hide when product recommendations begin
             ...(!hasProducts
               ? {
-                  suggestions: (data.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0)
-                    ? data.suggestions
-                    : generateFallbackSuggestions(data.response || '', userMessage),
-                }
+                suggestions: (data.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0)
+                  ? data.suggestions
+                  : generateFallbackSuggestions(data.response || '', userMessage),
+              }
               : {}),
           },
         });
@@ -1984,7 +1984,7 @@ export default function AgentChat({
 
     // Show the landing page when language not confirmed and no messages
     if (!languageConfirmed && messages.length === 0) {
-      const langFlags: Record<string, string> = { en: 'GB', hi: 'IN' };
+      const langFlags: Record<string, string> = { hi: 'IN' };
       const langGreetings: Record<string, string> = { en: 'Hello', hi: 'नमस्ते' };
       return (
         <div className="wai-frame">
@@ -2421,41 +2421,41 @@ export default function AgentChat({
                       (() => {
                         const lastAsstId = [...messages].reverse().find(m => m.role === 'assistant')?.id;
                         return messages.map((message) => {
-                        const isUser = message.role === 'user';
-                        const meta = message.metadata as any;
-                        const isProductMsg = meta?.type === 'products';
-                        const isLastAssistant = !isUser && message.id === lastAsstId;
-                        return (
-                          <div key={message.id} className={`wai-msg-row${isUser ? ' wai-msg-user-row' : ''}`}>
-                            {!isUser && (
-                              <div className="wai-msg-avatar">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                                  <circle cx="12" cy="8" r="4" fill="white" opacity="0.9" />
-                                  <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
-                                </svg>
-                              </div>
-                            )}
-                            <div className={`wai-bubble${isUser ? ' wai-bubble-user' : ' wai-bubble-ai'}`}>
-                              {isProductMsg ? (
-                                <p className="wai-bubble-text">✅ {message.content}</p>
-                              ) : (
-                                <p className="wai-bubble-text">
-                                  {(message.content || '').replace(/^#{1,6}\s+/gm, '').replace(/^[\s>*+-]+\s+/gm, '').replace(/(\*\*|__)(.*?)\1/g, '$2').replace(/(\*|_)(.*?)\1/g, '$2')}
-                                </p>
-                              )}
-                              {!isUser && !isProductMsg && isLastAssistant && Array.isArray(meta?.suggestions) && meta.suggestions.length > 0 && (
-                                <div className="wai-chips">
-                                  {meta.suggestions.map((s: any, i: number) => (
-                                    <button key={i} type="button" onClick={() => handleSendMessage(s.prompt)} className="wai-chip">{s.label}</button>
-                                  ))}
-                                  <button type="button" onClick={handleOtherClick} className="wai-chip wai-chip-muted">Other</button>
+                          const isUser = message.role === 'user';
+                          const meta = message.metadata as any;
+                          const isProductMsg = meta?.type === 'products';
+                          const isLastAssistant = !isUser && message.id === lastAsstId;
+                          return (
+                            <div key={message.id} className={`wai-msg-row${isUser ? ' wai-msg-user-row' : ''}`}>
+                              {!isUser && (
+                                <div className="wai-msg-avatar">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                    <circle cx="12" cy="8" r="4" fill="white" opacity="0.9" />
+                                    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
+                                  </svg>
                                 </div>
                               )}
-                              <span className={`wai-time${isUser ? ' wai-time-user' : ''}`}>{formatTime(message.createdAt)}</span>
+                              <div className={`wai-bubble${isUser ? ' wai-bubble-user' : ' wai-bubble-ai'}`}>
+                                {isProductMsg ? (
+                                  <p className="wai-bubble-text">✅ {message.content}</p>
+                                ) : (
+                                  <p className="wai-bubble-text">
+                                    {(message.content || '').replace(/^#{1,6}\s+/gm, '').replace(/^[\s>*+-]+\s+/gm, '').replace(/(\*\*|__)(.*?)\1/g, '$2').replace(/(\*|_)(.*?)\1/g, '$2')}
+                                  </p>
+                                )}
+                                {!isUser && !isProductMsg && isLastAssistant && Array.isArray(meta?.suggestions) && meta.suggestions.length > 0 && (
+                                  <div className="wai-chips">
+                                    {meta.suggestions.map((s: any, i: number) => (
+                                      <button key={i} type="button" onClick={() => handleSendMessage(s.prompt)} className="wai-chip">{s.label}</button>
+                                    ))}
+                                    <button type="button" onClick={handleOtherClick} className="wai-chip wai-chip-muted">Other</button>
+                                  </div>
+                                )}
+                                <span className={`wai-time${isUser ? ' wai-time-user' : ''}`}>{formatTime(message.createdAt)}</span>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      });
+                          );
+                        });
                       })()
                     )}
 
@@ -2894,48 +2894,48 @@ export default function AgentChat({
                         // Find the last assistant message ID so we only show chips on it
                         const lastAsstId = [...messages].reverse().find(m => m.role === 'assistant')?.id;
                         return messages.map((message) => {
-                        const isUser = message.role === 'user';
-                        const meta = message.metadata as any;
-                        const isProductMsg = meta?.type === 'products';
-                        const isLastAssistant = !isUser && message.id === lastAsstId;
-                        return (
-                          <div key={message.id} className={`wai-msg-row${isUser ? ' wai-msg-user-row' : ''}`}>
-                            {!isUser && (
-                              <div className="wai-msg-avatar">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                                  <circle cx="12" cy="8" r="4" fill="white" opacity="0.9" />
-                                  <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
-                                </svg>
-                              </div>
-                            )}
-                            <div className={`wai-bubble${isUser ? ' wai-bubble-user' : ' wai-bubble-ai'}`}>
-                              {isProductMsg ? (
-                                <p className="wai-bubble-text">✅ {message.content}</p>
-                              ) : (
-                                <p className="wai-bubble-text">
-                                  {(message.content || '').replace(/^#{1,6}\s+/gm, '').replace(/^[\s>*+-]+\s+/gm, '').replace(/(\*\*|__)(.*?)\1/g, '$2').replace(/(\*|_)(.*?)\1/g, '$2')}
-                                </p>
-                              )}
-                              {!isUser && !isProductMsg && isLastAssistant && Array.isArray(meta?.suggestions) && meta.suggestions.length > 0 && (
-                                <div className="wai-chips">
-                                  {meta.suggestions.map((s: any, i: number) => (
-                                    <button key={i} type="button" onClick={() => handleSendMessage(s.prompt)} className="wai-chip">
-                                      {s.label}
-                                    </button>
-                                  ))}
-                                  <button type="button" onClick={handleOtherClick} className="wai-chip wai-chip-muted">
-                                    Other
-                                  </button>
+                          const isUser = message.role === 'user';
+                          const meta = message.metadata as any;
+                          const isProductMsg = meta?.type === 'products';
+                          const isLastAssistant = !isUser && message.id === lastAsstId;
+                          return (
+                            <div key={message.id} className={`wai-msg-row${isUser ? ' wai-msg-user-row' : ''}`}>
+                              {!isUser && (
+                                <div className="wai-msg-avatar">
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                    <circle cx="12" cy="8" r="4" fill="white" opacity="0.9" />
+                                    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="white" strokeWidth="2" strokeLinecap="round" opacity="0.9" />
+                                  </svg>
                                 </div>
                               )}
+                              <div className={`wai-bubble${isUser ? ' wai-bubble-user' : ' wai-bubble-ai'}`}>
+                                {isProductMsg ? (
+                                  <p className="wai-bubble-text">✅ {message.content}</p>
+                                ) : (
+                                  <p className="wai-bubble-text">
+                                    {(message.content || '').replace(/^#{1,6}\s+/gm, '').replace(/^[\s>*+-]+\s+/gm, '').replace(/(\*\*|__)(.*?)\1/g, '$2').replace(/(\*|_)(.*?)\1/g, '$2')}
+                                  </p>
+                                )}
+                                {!isUser && !isProductMsg && isLastAssistant && Array.isArray(meta?.suggestions) && meta.suggestions.length > 0 && (
+                                  <div className="wai-chips">
+                                    {meta.suggestions.map((s: any, i: number) => (
+                                      <button key={i} type="button" onClick={() => handleSendMessage(s.prompt)} className="wai-chip">
+                                        {s.label}
+                                      </button>
+                                    ))}
+                                    <button type="button" onClick={handleOtherClick} className="wai-chip wai-chip-muted">
+                                      Other
+                                    </button>
+                                  </div>
+                                )}
 
-                              <span className={`wai-time${isUser ? ' wai-time-user' : ''}`}>
-                                {formatTime(message.createdAt)}
-                              </span>
+                                <span className={`wai-time${isUser ? ' wai-time-user' : ''}`}>
+                                  {formatTime(message.createdAt)}
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      });
+                          );
+                        });
                       })()
                     )}
 
