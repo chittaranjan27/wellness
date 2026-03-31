@@ -9,6 +9,7 @@ import { jsPDF } from "jspdf";
 import { ChatMessage as ChatMessageType } from "@prisma/client";
 import ChatMessage from "./ChatMessage";
 import VoiceChatButton from "./VoiceChatButton";
+import SalesAgentPanel from "./SalesAgentPanel";
 import { getLanguageByCode, getDefaultLanguage, SUPPORTED_LANGUAGES } from "@/lib/languages";
 
 type ProfileStage = "name" | "email" | "otp" | null;
@@ -95,8 +96,9 @@ export default function AgentChat({
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
   // Mobile tab toggle: 'chat' or 'picks' — only affects mobile layout
   const [mobileTab, setMobileTab] = useState<'chat' | 'picks'>('chat');
-  // Landing hub mode: null = show hub, 'consultation' = chat mode, 'offers' = show products, 'voice' = voice interaction
-  const [chatMode, setChatMode] = useState<'consultation' | 'offers' | 'voice' | null>(null);
+  // Landing hub mode: null = show hub, 'consultation' = chat mode, 'offers' = show products, 'voice' = voice interaction, 'sales' = sales agent
+  const [chatMode, setChatMode] = useState<'consultation' | 'offers' | 'voice' | 'sales' | null>(null);
+  const [salesConcern, setSalesConcern] = useState('');
   const chatModeRef = useRef(chatMode);
   const handleSendMessageRef = useRef<(msg: string) => void>(() => { });
   // Voice consultation mode: auto-speak AI replies, auto-restart mic after TTS ends
@@ -111,6 +113,33 @@ export default function AgentChat({
     imageUrl: string | null; url: string | null;
   }>>([]);
   const [dbProductsLoading, setDbProductsLoading] = useState(false);
+
+  /**
+   * Detect the user's primary concern from conversation history by keyword matching.
+   */
+  const detectSalesConcern = (history: Array<{ role: string; content: string }>): string => {
+    const allText = history.map(m => m.content).join(' ').toLowerCase();
+    const categories: Array<{ name: string; keywords: string[] }> = [
+      { name: 'Low energy & fatigue', keywords: ['energy', 'tired', 'fatigue', 'exhausted', 'weak', 'drained', 'lethargic', 'ऊर्जा', 'थकान'] },
+      { name: 'Stamina & performance', keywords: ['stamina', 'endurance', 'performance', 'fitness', 'workout', 'strength', 'स्टैमिना'] },
+      { name: 'Confidence & intimate wellness', keywords: ['confidence', 'intimate', 'bedroom', 'libido', 'desire', 'sexual', 'आत्मविश्वास'] },
+      { name: 'Diabetes & blood sugar', keywords: ['diabetes', 'blood sugar', 'sugar level', 'diabetic', 'glucose', 'insulin', 'मधुमेह', 'शुगर'] },
+      { name: 'General strength & recovery', keywords: ['recovery', 'general', 'overall', 'health', 'immunity', 'wellness', 'healing', 'रिकवरी'] },
+    ];
+    let bestMatch = '';
+    let bestScore = 0;
+    for (const cat of categories) {
+      let score = 0;
+      for (const kw of cat.keywords) {
+        if (allText.includes(kw)) score++;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = cat.name;
+      }
+    }
+    return bestMatch || currentCategory || 'General wellness';
+  };
 
   /**
    * Group products by base name so duration/combo variants appear together.
@@ -258,7 +287,7 @@ export default function AgentChat({
   }, [chatMode]);
 
 
-  const addAssistantMessage = (content: string) => {
+  const addAssistantMessage = (content: string, suggestions?: Array<{ label: string; prompt: string }>) => {
     const assistantMessage: ChatMessageType = {
       id: `assistant-local-${Date.now()}`,
       agentId,
@@ -267,9 +296,133 @@ export default function AgentChat({
       role: "assistant",
       content,
       createdAt: new Date(),
-      metadata: { source: "system" } as any,
+      metadata: {
+        source: "system",
+        ...(suggestions && suggestions.length > 0 ? { suggestions } : {}),
+      } as any,
     };
     setMessages((prev) => [...prev, assistantMessage]);
+  };
+
+  /**
+   * Generate context-aware fallback suggestions when the LLM doesn't provide [OPTIONS].
+   * Analyzes the AI response text + conversation state to produce relevant clickable options.
+   * Returns 2–4 options written from the user's first-person perspective.
+   */
+  const generateFallbackSuggestions = (aiResponse: string, userMessage: string): Array<{ label: string; prompt: string }> => {
+    const lang = selectedLanguage;
+    const lowerResponse = aiResponse.toLowerCase();
+    const lowerUser = userMessage.toLowerCase();
+
+    // ── Phase detection based on AI response content ──────────────────
+
+    // Age question detected
+    if (/age|age group|how old|what.*age|उम्र|आयु/i.test(aiResponse)) {
+      return lang === 'hi' ? [
+        { label: '24-35 साल', prompt: 'मेरी उम्र 24-35 साल है' },
+        { label: '35-45 साल', prompt: 'मेरी उम्र 35-45 साल है' },
+        { label: '45-55 साल', prompt: 'मेरी उम्र 45-55 साल है' },
+        { label: '55+ साल', prompt: 'मेरी उम्र 55 से अधिक है' },
+      ] : [
+        { label: '24-35 years', prompt: 'I am between 24-35 years old' },
+        { label: '35-45 years', prompt: 'I am between 35-45 years old' },
+        { label: '45-55 years', prompt: 'I am between 45-55 years old' },
+        { label: '55+ years', prompt: 'I am above 55 years old' },
+      ];
+    }
+
+    // First-time vs returning user question
+    if (/first time|tried.*before|explored.*supplement|पहली बार|पहले कभी/i.test(aiResponse)) {
+      return lang === 'hi' ? [
+        { label: 'हाँ, पहली बार है', prompt: 'हाँ, यह मेरी पहली बार है' },
+        { label: 'पहले try किया है', prompt: 'हाँ, मैंने पहले supplements try किए हैं' },
+        { label: 'बस जानकारी चाहिए', prompt: 'मैं बस कुछ जानकारी चाहता हूँ' },
+      ] : [
+        { label: 'Yes, first time', prompt: 'Yes, this is my first time exploring supplements' },
+        { label: "I've tried before", prompt: "I've tried supplements before but looking for something better" },
+        { label: 'Just exploring', prompt: 'I am just exploring my options for now' },
+      ];
+    }
+
+    // Concern / main issue question
+    if (/what.*concern|what.*issue|what.*bring|what.*help|how can.*help|tell me more|main concern|किस.*समस्या|क्या.*परेशानी|कैसे.*मदद/i.test(aiResponse)) {
+      return lang === 'hi' ? [
+        { label: 'कम ऊर्जा और थकान', prompt: 'मुझे कम ऊर्जा और थकान हो रही है' },
+        { label: 'स्टैमिना सुधारना है', prompt: 'मैं अपना स्टैमिना सुधारना चाहता हूँ' },
+        { label: 'तनाव और नींद', prompt: 'मुझे तनाव और नींद की समस्या है' },
+        { label: 'कुछ और है', prompt: 'मेरी कोई और समस्या है' },
+      ] : [
+        { label: 'Low energy & fatigue', prompt: "I'm experiencing low energy and constant fatigue" },
+        { label: 'Stamina issues', prompt: 'I want to improve my stamina and endurance' },
+        { label: 'Stress & sleep', prompt: "I'm dealing with stress and poor sleep" },
+        { label: 'Something else', prompt: 'I have a different concern' },
+      ];
+    }
+
+    // Product recommendation / price mention
+    if (/₹|price|recommend|suggest.*product|trial.*pack|pack|capsule|सिफारिश|उत्पाद|कीमत/i.test(aiResponse)) {
+      return lang === 'hi' ? [
+        { label: 'हाँ, try करना है', prompt: 'हाँ, मैं इसे try करना चाहता हूँ' },
+        { label: 'और जानकारी चाहिए', prompt: 'मुझे इसके बारे में और जानकारी चाहिए' },
+        { label: 'कीमत ज्यादा लगती है', prompt: 'कीमत थोड़ी ज्यादा लगती है, कोई और option है?' },
+        { label: 'कैसे लेना है?', prompt: 'इसे कैसे और कब लेना है?' },
+      ] : [
+        { label: "Yes, I'd like to try", prompt: "Yes, I'd like to try this product" },
+        { label: 'Tell me more', prompt: 'Can you tell me more about how it works?' },
+        { label: 'Seems expensive', prompt: 'The price seems a bit high. Any trial packs?' },
+        { label: 'How to use it?', prompt: 'How should I take this? What is the dosage?' },
+      ];
+    }
+
+    // Testimonial / trust building
+    if (/customer|result|worked|testimonial|certified|herbal|natural|ग्राहक|प्रमाणित|हर्बल|प्राकृतिक/i.test(aiResponse)) {
+      return lang === 'hi' ? [
+        { label: 'यह जानकर अच्छा लगा', prompt: 'यह जानकर अच्छा लगा, आगे बताइए' },
+        { label: 'कोई side effects?', prompt: 'क्या इसके कोई side effects हैं?' },
+        { label: 'कितने दिन में असर?', prompt: 'कितने दिनों में असर दिखता है?' },
+      ] : [
+        { label: "That's reassuring", prompt: "That's good to know, please continue" },
+        { label: 'Any side effects?', prompt: 'Are there any side effects I should know about?' },
+        { label: 'How soon results?', prompt: 'How soon can I expect to see results?' },
+      ];
+    }
+
+    // Dosage / lifestyle guidance
+    if (/dosage|take.*with|avoid|lifestyle|sleep|exercise|doÌ£sage|खुराक|सेवन|नींद/i.test(aiResponse)) {
+      return lang === 'hi' ? [
+        { label: 'समझ गया', prompt: 'समझ गया, मैं इसे follow करूंगा' },
+        { label: 'order कैसे करूं?', prompt: 'मैं इसे order कैसे करूं?' },
+        { label: 'और सवाल है', prompt: 'मेरे कुछ और सवाल हैं' },
+      ] : [
+        { label: 'Got it, thanks', prompt: 'Got it, I will follow these guidelines' },
+        { label: 'How to order?', prompt: 'How can I place an order?' },
+        { label: 'I have more questions', prompt: 'I have a few more questions before deciding' },
+      ];
+    }
+
+    // Closing / order question
+    if (/order|start|ready|would you like|shall I|proceed|ऑर्डर|शुरू|तैयार/i.test(aiResponse)) {
+      return lang === 'hi' ? [
+        { label: 'हाँ, order करता हूँ', prompt: 'हाँ, मैं order करना चाहता हूँ' },
+        { label: 'सोचने दीजिए', prompt: 'मुझे थोड़ा सोचने दीजिए' },
+        { label: 'trial pack से शुरू', prompt: 'क्या मैं trial pack से शुरू कर सकता हूँ?' },
+      ] : [
+        { label: "Yes, let's order", prompt: "Yes, I'd like to place an order" },
+        { label: 'Let me think', prompt: 'Let me think about it for a bit' },
+        { label: 'Start with trial', prompt: 'Can I start with a trial pack first?' },
+      ];
+    }
+
+    // Generic fallback — always provide something clickable
+    return lang === 'hi' ? [
+      { label: 'हाँ, बिल्कुल', prompt: 'हाँ, कृपया आगे बताइए' },
+      { label: 'और बताइए', prompt: 'मुझे और जानकारी चाहिए' },
+      { label: 'कोई और सवाल है', prompt: 'मेरा एक और सवाल है' },
+    ] : [
+      { label: 'Yes, please continue', prompt: 'Yes, please tell me more' },
+      { label: 'I need more info', prompt: 'I would like more information about this' },
+      { label: 'I have a question', prompt: 'I have another question' },
+    ];
   };
 
   const buildCheckoutLink = (_items: CartItem[]) => {
@@ -366,12 +519,16 @@ export default function AgentChat({
   const tName = (name: string) => t('welcomeBack').replace('{name}', name);
 
   // Warm greeting in the user's selected language — shown after language selection
-  const getGreetingForNamePrompt = (languageCode: string): string => {
+  const getGreetingForNamePrompt = (languageCode: string): { text: string; suggestions: Array<{ label: string; prompt: string }> } => {
     const greetings: Record<string, string> = {
       en: "Hello! Welcome to Wellness AI. I'm your personal wellness consultant — here to support your physical, mental, and lifestyle well-being.",
       hi: "नमस्ते! Wellness AI में आपका स्वागत है। मैं आपका व्यक्तिगत वेलनेस सलाहकार हूँ — शारीरिक, मानसिक और जीवनशैली से जुड़ी समस्याओं में आपकी मदद के लिए यहाँ हूँ।",
     };
-    return greetings[languageCode] ?? greetings.en;
+    // No chips on greeting since the next message is the name prompt
+    return {
+      text: greetings[languageCode] ?? greetings.en,
+      suggestions: [],
+    };
   };
 
   const promptForStage = (stage: ProfileStage) => {
@@ -383,7 +540,16 @@ export default function AgentChat({
     };
     const prompt = stageMap[stage];
     if (prompt) {
-      addAssistantMessage(prompt);
+      // Add name input suggestions (common name examples for quicker tap)
+      const nameSuggestions = stage === 'name' ? [] : undefined; // Name is free-form, no chips
+      const emailSuggestions = stage === 'email' ? (
+        selectedLanguage === 'hi' ? [
+          { label: 'बाद में बताऊंगा', prompt: 'मैं बाद में email दूंगा' },
+        ] : [
+          { label: "I'll share later", prompt: "I'll share my email later" },
+        ]
+      ) : undefined;
+      addAssistantMessage(prompt, emailSuggestions);
     }
   };
 
@@ -925,7 +1091,8 @@ export default function AgentChat({
 
     if (profileStage && profileStage !== "otp" && profileStage !== lastPromptStage) {
       if (profileStage === "name") {
-        addAssistantMessage(getGreetingForNamePrompt(selectedLanguage));
+        const greeting = getGreetingForNamePrompt(selectedLanguage);
+        addAssistantMessage(greeting.text, greeting.suggestions.length > 0 ? greeting.suggestions : undefined);
         promptForStage(profileStage);
       } else {
         promptForStage(profileStage);
@@ -1212,38 +1379,11 @@ export default function AgentChat({
 
         const timestamp = Date.now();
 
-        // ── Client-side option parsing (safety net) ──────────────────
-        // If backend didn't extract suggestions, try parsing them here
+        // ── Client-side option assignment ──────────────────
         let finalContent = consultData.response || '';
         let finalSuggestions = (consultData.suggestions && Array.isArray(consultData.suggestions) && consultData.suggestions.length > 0)
           ? consultData.suggestions
           : [];
-
-        // Strip [OPTIONS]...[/OPTIONS] from the visible text (in case backend missed it)
-        const optBracket = /\[OPTIONS\]\s*([\s\S]*?)\s*\[\/OPTIONS\]/i;
-        const optMatch = finalContent.match(optBracket);
-        if (optMatch) {
-          if (finalSuggestions.length === 0) {
-            finalSuggestions = optMatch[1].split('\n')
-              .map((l: string) => l.replace(/^[-•*\d.)\]\s]+/, '').trim())
-              .filter((l: string) => l.length > 0 && l.length < 120)
-              .map((l: string) => ({ label: l, prompt: l }));
-          }
-          finalContent = finalContent.replace(optBracket, '').trim();
-        }
-
-        // Strip "Options:" header + trailing numbered list from visible text
-        const optHeader = /\n\s*\*{0,2}Options\*{0,2}\s*:?\s*\n([\s\S]+)$/i;
-        const headerMatch = finalContent.match(optHeader);
-        if (headerMatch) {
-          if (finalSuggestions.length === 0) {
-            finalSuggestions = headerMatch[1].split('\n')
-              .map((l: string) => l.replace(/^[-•*\d.)\]\s]+/, '').replace(/^\*\*(.+?)\*\*$/, '$1').trim())
-              .filter((l: string) => l.length > 0 && l.length < 120)
-              .map((l: string) => ({ label: l, prompt: l }));
-          }
-          finalContent = finalContent.replace(optHeader, '').trim();
-        }
 
         setMessages((prev) => {
           const filtered = prev.filter((m) => m.id !== tempUserMessage.id);
@@ -1262,7 +1402,9 @@ export default function AgentChat({
             metadata: {
               source: 'db-consultation',
               ...(consultData.product ? { productCard: consultData.product } : {}),
-              ...(finalSuggestions.length > 0 ? { suggestions: finalSuggestions } : {}),
+              suggestions: finalSuggestions.length > 0
+                ? finalSuggestions
+                : generateFallbackSuggestions(finalContent, userMessage),
             } as any,
           });
           return nextMessages;
@@ -1475,8 +1617,12 @@ export default function AgentChat({
           metadata: {
             contextUsed: data.contextUsed,
             // Only add suggestions during consultation (no products); hide when product recommendations begin
-            ...(!hasProducts && data.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0
-              ? { suggestions: data.suggestions }
+            ...(!hasProducts
+              ? {
+                  suggestions: (data.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0)
+                    ? data.suggestions
+                    : generateFallbackSuggestions(data.response || '', userMessage),
+                }
               : {}),
           },
         });
@@ -2272,10 +2418,13 @@ export default function AgentChat({
                         <p className="wai-voice-empty-hint">Your conversation will appear here</p>
                       </div>
                     ) : (
-                      messages.map((message) => {
+                      (() => {
+                        const lastAsstId = [...messages].reverse().find(m => m.role === 'assistant')?.id;
+                        return messages.map((message) => {
                         const isUser = message.role === 'user';
                         const meta = message.metadata as any;
                         const isProductMsg = meta?.type === 'products';
+                        const isLastAssistant = !isUser && message.id === lastAsstId;
                         return (
                           <div key={message.id} className={`wai-msg-row${isUser ? ' wai-msg-user-row' : ''}`}>
                             {!isUser && (
@@ -2294,7 +2443,7 @@ export default function AgentChat({
                                   {(message.content || '').replace(/^#{1,6}\s+/gm, '').replace(/^[\s>*+-]+\s+/gm, '').replace(/(\*\*|__)(.*?)\1/g, '$2').replace(/(\*|_)(.*?)\1/g, '$2')}
                                 </p>
                               )}
-                              {!isUser && !isProductMsg && Array.isArray(meta?.suggestions) && meta.suggestions.length > 0 && (
+                              {!isUser && !isProductMsg && isLastAssistant && Array.isArray(meta?.suggestions) && meta.suggestions.length > 0 && (
                                 <div className="wai-chips">
                                   {meta.suggestions.map((s: any, i: number) => (
                                     <button key={i} type="button" onClick={() => handleSendMessage(s.prompt)} className="wai-chip">{s.label}</button>
@@ -2306,7 +2455,8 @@ export default function AgentChat({
                             </div>
                           </div>
                         );
-                      })
+                      });
+                      })()
                     )}
 
                     {/* Typing indicator */}
@@ -2740,10 +2890,14 @@ export default function AgentChat({
                         </div>
                       )
                     ) : (
-                      messages.map((message) => {
+                      (() => {
+                        // Find the last assistant message ID so we only show chips on it
+                        const lastAsstId = [...messages].reverse().find(m => m.role === 'assistant')?.id;
+                        return messages.map((message) => {
                         const isUser = message.role === 'user';
                         const meta = message.metadata as any;
                         const isProductMsg = meta?.type === 'products';
+                        const isLastAssistant = !isUser && message.id === lastAsstId;
                         return (
                           <div key={message.id} className={`wai-msg-row${isUser ? ' wai-msg-user-row' : ''}`}>
                             {!isUser && (
@@ -2762,7 +2916,7 @@ export default function AgentChat({
                                   {(message.content || '').replace(/^#{1,6}\s+/gm, '').replace(/^[\s>*+-]+\s+/gm, '').replace(/(\*\*|__)(.*?)\1/g, '$2').replace(/(\*|_)(.*?)\1/g, '$2')}
                                 </p>
                               )}
-                              {!isUser && !isProductMsg && Array.isArray(meta?.suggestions) && meta.suggestions.length > 0 && (
+                              {!isUser && !isProductMsg && isLastAssistant && Array.isArray(meta?.suggestions) && meta.suggestions.length > 0 && (
                                 <div className="wai-chips">
                                   {meta.suggestions.map((s: any, i: number) => (
                                     <button key={i} type="button" onClick={() => handleSendMessage(s.prompt)} className="wai-chip">
@@ -2781,7 +2935,8 @@ export default function AgentChat({
                             </div>
                           </div>
                         );
-                      })
+                      });
+                      })()
                     )}
 
                     {/* Typing indicator */}
@@ -2837,8 +2992,23 @@ export default function AgentChat({
               </div>
             )}
 
-            {/* ══ RIGHT PANEL: Products (shown in consultation + voice modes) ══ */}
-            {chatMode && chatMode !== 'offers' && (
+            {/* ══ RIGHT PANEL: Sales Agent (shown when chatMode is sales) ══ */}
+            {chatMode === 'sales' && (
+              <div className={`wai-products${mobileTab === 'picks' ? ' wai-mobile-active' : ''}`}>
+                <SalesAgentPanel
+                  agentId={agentId}
+                  concern={salesConcern}
+                  language={selectedLanguage}
+                  onAddToCart={(url: string, qty: number) => {
+                    window.open(url, '_blank');
+                  }}
+                  onClose={() => setChatMode('consultation')}
+                />
+              </div>
+            )}
+
+            {/* ══ RIGHT PANEL: Products (shown in consultation + voice modes, NOT in sales) ══ */}
+            {chatMode && chatMode !== 'offers' && chatMode !== 'sales' && (
               <div className={`wai-products${mobileTab === 'picks' ? ' wai-mobile-active' : ''}`}>
                 {productResults.length === 0 ? (
                   /* Empty state */
@@ -3010,6 +3180,29 @@ export default function AgentChat({
                           );
                         })}
                       </div>
+
+                      {/* ── CTA: Get Personalized Plan ── */}
+                      {chatMode === 'consultation' && productResults.length > 0 && (
+                        <div className="wai-sales-cta-section">
+                          <p className="wai-sales-cta-text">Our sales specialist will build your perfect plan</p>
+                          <button
+                            type="button"
+                            className="wai-sales-cta-btn"
+                            onClick={() => {
+                              const detected = detectSalesConcern(
+                                messages
+                                  .filter(m => m.role === 'user' || m.role === 'assistant')
+                                  .map(m => ({ role: m.role, content: m.content }))
+                              );
+                              setSalesConcern(detected);
+                              setMobileTab('picks');
+                              setChatMode('sales');
+                            }}
+                          >
+                            🎯 Get My Personalized Plan
+                          </button>
+                        </div>
+                      )}
 
                       {/* Cart summary */}
                       {cartItems.length > 0 && (
@@ -3864,6 +4057,31 @@ export default function AgentChat({
           .wai-cart-link:hover { background: #E35353; color: #fff; }
           .wai-checkout-link { background: #1A1A1A; color: #fff; border-color: #1A1A1A; }
           .wai-checkout-link:hover { background: #E35353; border-color: #E35353; }
+
+          /* ── Sales CTA Button ────────────────────────── */
+          .wai-sales-cta-section {
+            margin-top: 16px; padding: 14px; border-radius: 16px;
+            background: linear-gradient(135deg, rgba(227,83,83,0.06) 0%, rgba(227,83,83,0.12) 100%);
+            border: 1.5px solid rgba(227,83,83,0.2);
+            text-align: center;
+          }
+          .wai-sales-cta-text {
+            margin: 0 0 10px; font-size: 11.5px; color: #6b7280;
+            font-weight: 600; line-height: 1.5;
+          }
+          .wai-sales-cta-btn {
+            width: 100%; padding: 12px 16px; border-radius: 14px; border: none;
+            background: linear-gradient(135deg, #1A1A1A 0%, #E35353 100%);
+            color: #fff; font-size: 13px; font-weight: 800;
+            cursor: pointer; transition: all 0.2s;
+            box-shadow: 0 4px 16px rgba(227,83,83,0.3);
+            letter-spacing: 0.01em;
+          }
+          .wai-sales-cta-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(227,83,83,0.45);
+          }
+          .wai-sales-cta-btn:active { transform: scale(0.98); }
 
           /* ── Header menu button (three dots) ────────── */
           .wai-header-menu {

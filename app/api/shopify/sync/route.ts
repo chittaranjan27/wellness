@@ -70,6 +70,10 @@ function mapToLocalProduct(sp: ShopifyProduct) {
     .filter((t) => t && t !== 'Default Title')
   const format = variantTitles.length > 0 ? variantTitles.join(' / ') : null
 
+  // Extract the first available variant ID for Shopify checkout
+  const firstVariant = sp.variants.find((v) => v.available !== false) || sp.variants[0]
+  const shopifyVariantId = firstVariant?.id || null
+
   return {
     product_id: sp.handle,
     product_name: sp.title,
@@ -92,6 +96,7 @@ function mapToLocalProduct(sp: ShopifyProduct) {
     results_timeline: null as string | null,
     compatibility: null as string | null,
     recommended_plan: null as string | null,
+    shopify_variant_id: shopifyVariantId,
   }
 }
 
@@ -143,7 +148,8 @@ export async function POST(req: NextRequest) {
             market, daily_dose_caps, supply_days, funnel_role,
             discount_eligible, discount_pct,
             target_age_group, health_issues, dosage_instructions,
-            results_timeline, compatibility, recommended_plan
+            results_timeline, compatibility, recommended_plan,
+            shopify_variant_id
           ) VALUES (
             $1, $2, $3, $4,
             $5, $6,
@@ -151,7 +157,8 @@ export async function POST(req: NextRequest) {
             $10, $11, $12, $13,
             $14, $15,
             $16, $17, $18,
-            $19, $20, $21
+            $19, $20, $21,
+            $22
           )`,
           p.product_id,
           p.product_name,
@@ -173,7 +180,8 @@ export async function POST(req: NextRequest) {
           p.dosage_instructions,
           p.results_timeline,
           p.compatibility,
-          p.recommended_plan
+          p.recommended_plan,
+          p.shopify_variant_id
         )
         synced++
       } catch (insertErr) {

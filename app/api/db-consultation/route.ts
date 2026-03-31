@@ -145,14 +145,22 @@ export async function POST(req: NextRequest) {
       messages: llmMessages as any,
       temperature: 0.7,
       max_tokens: 700,
+      response_format: { type: "json_object" }
     })
 
-    const rawResponse = completion.choices[0]?.message?.content?.trim() || ''
+    const rawResponse = completion.choices[0]?.message?.content?.trim() || '{}'
     const usage = completion.usage
 
-    // ── 6a. Extract [OPTIONS] and [PRODUCTS] blocks from LLM response ────
-    const { cleanText: afterOptions, suggestions } = parseOptionsFromResponse(rawResponse)
-    const { cleanText: responseText, recommendedProducts } = parseProductsFromResponse(afterOptions)
+    let parsedResponse: any = { response: rawResponse, recommended_products: [], options: [] }
+    try {
+      parsedResponse = JSON.parse(rawResponse)
+    } catch (e) {
+      console.error('[db-consultation] Failed to parse JSON response:', e)
+    }
+
+    const responseText = parsedResponse.response || rawResponse || ''
+    const recommendedProducts = Array.isArray(parsedResponse.recommended_products) ? parsedResponse.recommended_products : []
+    const suggestions = Array.isArray(parsedResponse.options) ? parsedResponse.options : []
 
     // ── 6b. Detect product mention → return price card ────────────────
     const productCard = detectProductCard(responseText, products, ageSegments, history, message)
@@ -264,42 +272,29 @@ function buildSystemPrompt(
   prompt +=
     `\n\n——————————————————————————\n` +
     `RESPONSE FORMAT RULES:\n` +
-    `• Write in plain, conversational prose — no bullet points, no numbered lists, no markdown headings.\n` +
+    `• You MUST respond with a perfectly valid JSON object.\n` +
+    `• Write the "response" property as plain, conversational prose — no bullet points, no numbered lists.\n` +
     `• Maximum 3–4 sentences per response (Phase 4 product recommendations and Phase 6 guidance may be slightly longer).\n` +
     `• When recommending a product, ALWAYS include its exact ₹ price from the PRODUCT CATALOG.\n` +
-    `• When sharing a testimonial, weave it naturally into the conversation — don't present it as a list item.\n` +
-    `• End every response with a single, clear next question or action — never leave the user hanging.\n` +
-    `• Never say "Moving to Phase X" or reference the consultation script internally.\n\n` +
-    `CLICKABLE OPTIONS (MANDATORY):\n` +
-    `After EVERY response, provide 2–4 suggested reply options the user might pick.\n` +
-    `Write them from the USER's first-person perspective (e.g. "Yes, I'd like to try it" not "Try the product").\n` +
-    `Wrap them in an [OPTIONS] block at the very end, exactly like this:\n` +
-    `[OPTIONS]\n` +
-    `Option 1 text\n` +
-    `Option 2 text\n` +
-    `Option 3 text\n` +
-    `[/OPTIONS]\n\n` +
-    `Rules for options:\n` +
-    `• Keep each option under 8 words — short and tappable.\n` +
-    `• Include a mix: at least one agreeing answer and one that asks for more info or shows hesitation.\n` +
-    `• Options MUST match the user's selected language. Hindi user = all Hindi options. English user = all English options. Never mix..\n` +
-    `• NEVER skip the [OPTIONS] block.\n\n` +
-    `PRODUCT SIDEBAR (CONDITIONAL):\n` +
-    `When you recommend or mention a specific product from the PRODUCT CATALOG, include a [PRODUCTS] block.\n` +
-    `This block tells the UI which products to display in the sidebar panel.\n` +
-    `ONLY include this block when you are actively recommending or discussing a specific product.\n` +
-    `Do NOT include this block during initial greeting, name exchange, age questions, or general conversation.\n` +
-    `Format:\n` +
-    `[PRODUCTS]\n` +
-    `Exact Product Name 1\n` +
-    `Exact Product Name 2\n` +
-    `[/PRODUCTS]\n\n` +
-    `Rules for [PRODUCTS]:\n` +
-    `• Use EXACT product names from the PRODUCT CATALOG above.\n` +
-    `• Only list products you are actively recommending or discussing in this response.\n` +
-    `• Place the [PRODUCTS] block BEFORE the [OPTIONS] block.\n` +
-    `• If you are NOT recommending any product in this response, do NOT include the [PRODUCTS] block at all.\n` +
-    `• Maximum 3 products per response.`
+    `• End every response with a single, clear next question or action — never leave the user hanging.\n\n` +
+    `JSON STRUCTURE REQUIRED:\n` +
+    `{\n` +
+    `  "response": "Your conversational text here",\n` +
+    `  "recommended_products": ["Exact Product Name 1", "Exact Product Name 2"],\n` +
+    `  "options": [\n` +
+    `    { "label": "Short label", "prompt": "Full first-person text" },\n` +
+    `    { "label": "Short label 2", "prompt": "Full first-person text 2" }\n` +
+    `  ]\n` +
+    `}\n\n` +
+    `Rules for "options" array:\n` +
+    `• Provide 2–4 highly contextual, stage-appropriate reply options the user might pick based EXACTLY on what you just said in the "response".\n` +
+    `• Write them from the USER's first-person perspective (e.g. "Yes, I'd like to try it").\n` +
+    `• Keep each label under 5 words.\n` +
+    `• Options MUST match the user's selected language exactly (e.g. Hindi user = Hindi options, English user = English options).\n` +
+    `• Include a mix of agreeable answers and hesitating or curious follow-up questions.\n\n` +
+    `Rules for "recommended_products" array:\n` +
+    `• ONLY list exact product names from the PRODUCT CATALOG if you are actively recommending them in this specific turn.\n` +
+    `• Otherwise, it should be an empty array [].\n`
 
   return prompt
 }
@@ -527,101 +522,5 @@ function detectContextProducts(
   return matchedProducts.map((p) => formatCard(p))
 }
 
-/**
- * Parse [PRODUCTS]…[/PRODUCTS] block from the LLM response.
- * Returns the cleaned text (block stripped) and an array of product names
- * the AI explicitly recommended for the sidebar.
- */
-function parseProductsFromResponse(raw: string): {
-  cleanText: string
-  recommendedProducts: string[]
-} {
-  const productsRegex = /\[PRODUCTS\]\s*([\s\S]*?)\s*\[\/PRODUCTS\]/i
-  const match = raw.match(productsRegex)
 
-  if (!match) {
-    return { cleanText: raw, recommendedProducts: [] }
-  }
-
-  const cleanText = raw.replace(productsRegex, '').trim()
-  const recommendedProducts = match[1]
-    .split('\n')
-    .map((line) => line.replace(/^[-•*\d.)\\]\s]+/, '').trim())
-    .filter((line) => line.length > 0 && line.length < 150)
-
-  console.log('[db-consultation] AI recommended products:', recommendedProducts)
-  return { cleanText, recommendedProducts }
-}
-
-/**
- * Parse suggested reply options from the LLM's raw response.
- *
- * The model may wrap them in [OPTIONS]…[/OPTIONS], or it might produce
- * a trailing numbered/bulleted list prefixed by "Options:", "**Options:**",
- * or similar.  This function tries multiple patterns and returns the first
- * match so we reliably strip the options from the visible text and surface
- * them as clickable chips.
- */
-function parseOptionsFromResponse(raw: string): {
-  cleanText: string
-  suggestions: Array<{ label: string; prompt: string }>
-} {
-  // ── Pattern 1: explicit [OPTIONS] … [/OPTIONS] block ─────────────────
-  const bracketRegex = /\[OPTIONS\]\s*([\s\S]*?)\s*\[\/OPTIONS\]/i
-  const bracketMatch = raw.match(bracketRegex)
-  if (bracketMatch) {
-    const cleanText = raw.replace(bracketRegex, '').trim()
-    const suggestions = extractLines(bracketMatch[1])
-    if (suggestions.length > 0) return { cleanText, suggestions }
-  }
-
-  // ── Pattern 2: "Options:" / "**Options:**" header followed by list ───
-  // Matches "Options:", "**Options**:", "**Options:**", etc. at the start of a line
-  const headerRegex = /\n\s*\*{0,2}Options\*{0,2}\s*:?\s*\n([\s\S]+)$/i
-  const headerMatch = raw.match(headerRegex)
-  if (headerMatch) {
-    const cleanText = raw.replace(headerRegex, '').trim()
-    const suggestions = extractLines(headerMatch[1])
-    if (suggestions.length > 0) return { cleanText, suggestions }
-  }
-
-  // ── Pattern 3: trailing numbered list (1. / 2. / 3. …) at the end ───
-  // Only if the last 2-5 lines are all numbered items
-  const lines = raw.split('\n')
-  let trailingStart = -1
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const stripped = lines[i].trim()
-    if (!stripped) continue // skip blank trailing lines
-    if (/^\d+[.)]\s+.+/.test(stripped)) {
-      trailingStart = i
-    } else {
-      break
-    }
-  }
-  if (trailingStart >= 0) {
-    const trailingLines = lines.slice(trailingStart)
-    const suggestions = extractLines(trailingLines.join('\n'))
-    if (suggestions.length >= 2 && suggestions.length <= 6) {
-      const cleanText = lines.slice(0, trailingStart).join('\n').trim()
-      return { cleanText, suggestions }
-    }
-  }
-
-  // ── No options found ─────────────────────────────────────────────────
-  return { cleanText: raw, suggestions: [] }
-}
-
-/** Shared helper: split a block of text into clean option entries. */
-function extractLines(block: string): Array<{ label: string; prompt: string }> {
-  return block
-    .split('\n')
-    .map((line) =>
-      line
-        .replace(/^[-•*▸▹►➤●○◦\d.)\]\s]+/, '') // strip bullets, numbers, brackets
-        .replace(/^\*\*(.+?)\*\*$/, '$1')         // strip bold markdown
-        .trim()
-    )
-    .filter((line) => line.length > 0 && line.length < 120)
-    .map((opt) => ({ label: opt, prompt: opt }))
-}
 
