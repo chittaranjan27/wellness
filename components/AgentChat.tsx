@@ -2011,8 +2011,13 @@ export default function AgentChat({
 
             {/* ── Centered content ── */}
             <div className="wai-landing-body">
-              <h1 className="wai-landing-title">Hello 👋</h1>
-              <p className="wai-landing-subtitle">Choose your preferred language to begin</p>
+              <div className="wai-landing-lock">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="5" y="11" width="14" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
+                </svg>
+              </div>
+              <h1 className="wai-landing-title">Your consultation is private</h1>
+              <p className="wai-landing-subtitle">Please choose a language to begin</p>
 
               <div className="wai-landing-lang-row">
                 {greetingLanguages.map((lang) => {
@@ -2034,13 +2039,6 @@ export default function AgentChat({
               </div>
             </div>
 
-            {/* ── Footer ── */}
-            <div className="wai-landing-footer">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
-              </svg>
-              <span>Private &amp; confidential</span>
-            </div>
           </div>
 
           {/* ── Landing page styles ── */}
@@ -2063,7 +2061,9 @@ export default function AgentChat({
               flex-direction: column;
               width: 100%;
               height: 100%;
-              background: linear-gradient(160deg, #6B1A14 0%, #8B2820 30%, #7A2018 60%, #5C1510 100%);
+              background: linear-gradient(to bottom, rgba(139, 40, 32, 0.85), rgba(92, 21, 16, 0.95)), url('/doctor.png');
+              background-size: cover;
+              background-position: center;
               font-family: 'Montserrat', 'Dosis', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
               overflow: hidden;
               border-radius: 16px;
@@ -2142,20 +2142,30 @@ export default function AgentChat({
               text-align: center;
               gap: 0;
             }
+            .wai-landing-lock {
+              width: 64px;
+              height: 64px;
+              border-radius: 50%;
+              border: 1.5px solid rgba(255, 255, 255, 0.3);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin-bottom: 24px;
+            }
             .wai-landing-title {
               margin: 0 0 12px;
-              font-family: 'Dosis', 'Montserrat', sans-serif;
-              font-size: 38px;
-              font-weight: 800;
+              font-family: 'Playfair Display', 'Montserrat', serif;
+              font-size: 34px;
+              font-weight: 600;
               color: #fff;
-              letter-spacing: -0.02em;
+              letter-spacing: 0.01em;
             }
             .wai-landing-subtitle {
-              margin: 0 0 36px;
-              font-size: 15px;
+              margin: 0 0 40px;
+              font-size: 16px;
               font-weight: 400;
-              color: rgba(255,255,255,0.6);
-              letter-spacing: 0.01em;
+              color: rgba(255,255,255,0.8);
+              letter-spacing: 0.5px;
             }
 
             /* ── Language cards row ── */
@@ -2171,16 +2181,17 @@ export default function AgentChat({
               display: flex;
               flex-direction: column;
               align-items: center;
-              gap: 8px;
-              padding: 24px 16px 20px;
+              gap: 6px;
+              padding: 24px 20px;
               border-radius: 16px;
-              border: 1.5px solid rgba(255,255,255,0.15);
-              background: rgba(255,255,255,0.08);
-              backdrop-filter: blur(12px);
-              -webkit-backdrop-filter: blur(12px);
+              border: 1px solid rgba(255, 255, 255, 0.25);
+              background: rgba(255, 255, 255, 0.05);
+              backdrop-filter: blur(16px);
+              -webkit-backdrop-filter: blur(16px);
               cursor: pointer;
-              transition: all 0.25s ease;
+              transition: all 0.3s ease;
               text-align: center;
+              box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
             }
             .wai-landing-lang-card:hover {
               background: rgba(255,255,255,0.14);
@@ -2192,33 +2203,24 @@ export default function AgentChat({
               transform: translateY(0);
             }
             .wai-landing-lang-flag {
-              font-size: 20px;
-              font-weight: 800;
-              color: rgba(255,255,255,0.85);
-              letter-spacing: 0.08em;
-            }
-            .wai-landing-lang-greeting {
               font-size: 16px;
               font-weight: 700;
+              color: rgba(255,255,255,0.9);
+              letter-spacing: 0.05em;
+              text-transform: uppercase;
+              margin-bottom: 4px;
+            }
+            .wai-landing-lang-greeting {
+              font-size: 26px;
+              font-family: 'Playfair Display', serif;
+              font-weight: 600;
               color: #fff;
+              margin-bottom: 2px;
             }
             .wai-landing-lang-name {
-              font-size: 12px;
-              color: rgba(255,255,255,0.5);
+              font-size: 13px;
+              color: rgba(255,255,255,0.7);
               font-weight: 400;
-            }
-
-            /* ── Footer ── */
-            .wai-landing-footer {
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              gap: 6px;
-              padding: 16px 20px 20px;
-              font-size: 12px;
-              color: rgba(255,255,255,0.4);
-              font-weight: 500;
-              flex-shrink: 0;
             }
 
             /* ── Mobile ── */
@@ -2244,11 +2246,11 @@ export default function AgentChat({
                 font-size: 13px;
               }
               .wai-landing-title {
-                font-size: 30px;
+                font-size: 26px;
               }
               .wai-landing-subtitle {
-                font-size: 13px;
-                margin-bottom: 28px;
+                font-size: 14px;
+                margin-bottom: 32px;
               }
               .wai-landing-lang-row {
                 gap: 12px;
@@ -2256,17 +2258,14 @@ export default function AgentChat({
                 padding: 0 4px;
               }
               .wai-landing-lang-card {
-                padding: 20px 12px 16px;
+                padding: 20px 12px;
                 border-radius: 14px;
               }
               .wai-landing-lang-flag {
-                font-size: 18px;
+                font-size: 14px;
               }
               .wai-landing-lang-greeting {
-                font-size: 15px;
-              }
-              .wai-landing-footer {
-                padding: 12px 16px 16px;
+                font-size: 22px;
               }
             }
 
