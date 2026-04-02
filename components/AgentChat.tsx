@@ -3261,7 +3261,7 @@ export default function AgentChat({
                 </button>
                 <div className="wai-voice-popup-content">
                   <h3 className="wai-voice-popup-title">Speak Your Concern</h3>
-                  <p className="wai-voice-popup-subtitle">I'm listening and ready to help.</p>
+                  <p className="wai-voice-popup-subtitle">I&apos;m listening and ready to help.</p>
 
                   <div className="wai-voice-popup-mic-wrap">
                     <span className={`wai-voice-popup-ring${isListening ? ' wai-voice-popup-ring-active' : ''}`} />
@@ -3699,7 +3699,7 @@ export default function AgentChat({
           .wai-send-btn:hover:not(:disabled) { transform: scale(1.1); box-shadow: 0 5px 18px rgba(192,57,43,0.4); }
           .wai-send-btn:active:not(:disabled) { transform: scale(0.95); }
           .wai-send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-          .wai-input-hint { margin: 4px 4px 0 16px; text-align: left; font-size: 9px; color: #ccc; letter-spacing: 0.03em; font-weight: 400; }
+          .wai-input-hint { margin: 6px auto 0; text-align: center; font-size: 9px; color: #ccc; letter-spacing: 0.03em; font-weight: 400; }
 
           /* ── Voice panel ───────────────────────────── */
           .wai-voice-panel {
