@@ -61,6 +61,7 @@ export default function AgentChat({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [showVoicePopup, setShowVoicePopup] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState(defaultLanguage);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -1187,6 +1188,7 @@ export default function AgentChat({
       recognitionRef.current.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         setIsListening(false);
+        setShowVoicePopup(false); // auto-close popup when done
         voiceAutoListenRef.current = false; // pause auto-listen until AI responds
         void fetch("/api/voice/speech-to-text", {
           method: "POST",
@@ -1207,10 +1209,12 @@ export default function AgentChat({
 
       recognitionRef.current.onerror = () => {
         setIsListening(false);
+        setShowVoicePopup(false);
       };
 
       recognitionRef.current.onend = () => {
         setIsListening(false);
+        setShowVoicePopup(false);
       };
     }
   }, [selectedLanguage]);
@@ -1679,6 +1683,14 @@ export default function AgentChat({
     handleSendMessage(input);
   };
 
+  const handleVoiceInputClick = () => {
+    setShowVoicePopup(true);
+    if (!isListening && recognitionRef.current) {
+      recognitionRef.current.start();
+      setIsListening(true);
+    }
+  };
+
   const handleVoiceInput = () => {
     if (!recognitionRef.current) {
       alert("Speech recognition not supported in your browser");
@@ -1912,6 +1924,8 @@ export default function AgentChat({
 
     if (isEmbedChat) {
       // For embedded chat, start profile intake after language selection
+      // Skip the hub — go directly to consultation mode
+      setChatMode('consultation');
       if (profileLoaded) {
         const nextStage = getNextProfileStage(profileData);
         setProfileStage(nextStage);
@@ -2043,7 +2057,7 @@ export default function AgentChat({
 
           {/* ── Landing page styles ── */}
           <style>{`
-            @import url('https://fonts.googleapis.com/css2?family=Dosis:wght@400;600;700;800&family=Montserrat:wght@400;500;600;700;800&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&family=Dosis:wght@400;600;700;800&family=Montserrat:wght@400;500;600;700;800&display=swap');
 
             .wai-frame {
               width: 100%;
@@ -2551,16 +2565,16 @@ export default function AgentChat({
                     Switch to text
                   </button>
 
-                  {/* Back to hub */}
+                  {/* Back to consultation */}
                   <button type="button" className="wai-back-btn" style={{ marginTop: '4px' }}
-                    title="Back to menu"
+                    title="Back to consultation"
                     onClick={() => {
                       voiceAutoListenRef.current = false;
                       setVoiceCallActive(false);
                       if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch (e) { } }
                       const a = currentAudioRef.current; if (a) { a.pause(); a.currentTime = 0; }
                       setIsListening(false); setIsSpeaking(false);
-                      setChatMode(null);
+                      setChatMode('consultation');
                     }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M15 18l-6-6 6-6" />
@@ -2575,7 +2589,7 @@ export default function AgentChat({
               <div className="wai-offers-fullscreen">
                 {/* Header bar */}
                 <div className="wai-offers-header">
-                  <button type="button" className="wai-offers-back" onClick={() => { setChatMode(null); setDbProducts([]); }}
+                  <button type="button" className="wai-offers-back" onClick={() => { setChatMode('consultation'); setDbProducts([]); }}
                     title="Back">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M15 18l-6-6 6-6" />
@@ -2831,16 +2845,9 @@ export default function AgentChat({
               <div className={`wai-chat${mobileTab === 'chat' ? ' wai-mobile-active' : ''}`}
                 style={!chatMode ? { width: '100%', borderRight: 'none' } : undefined}>
 
-                {/* ─ Back to Hub subheader (shown in consultation mode on all screens) ─ */}
+                {/* ─ Consultation subheader (no back button — direct flow from language selection) ─ */}
                 {chatMode === 'consultation' && (
                   <div className="wai-chat-subheader">
-                    <button type="button" className="wai-back-btn"
-                      onClick={() => { setChatMode(null); }}
-                      title="Back to menu">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M15 18l-6-6 6-6" />
-                      </svg>
-                    </button>
                     <span className="wai-chat-subheader-label">💬 Consultation</span>
                   </div>
                 )}
@@ -2961,31 +2968,38 @@ export default function AgentChat({
                 {/* ─ Input (hidden on language selection screen) ─ */}
                 {languageConfirmed && (
                   <form onSubmit={handleSubmit} className="wai-input-bar">
-                    <div className="wai-input-wrap">
-                      {/* Mic */}
-                      <button type="button" onClick={handleVoiceInput} disabled={loading}
-                        className={`wai-mic-btn${isListening ? ' wai-mic-active' : ''}`}
-                        title={isListening ? 'Stop' : 'Voice input'}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          {isListening
-                            ? <><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></>
-                            : <><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></>}
-                        </svg>
-                      </button>
-                      <input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value)}
-                        placeholder={inputPlaceholder}
-                        disabled={loading}
-                        className="wai-input" />
-                      {/* Send */}
-                      <button type="submit" disabled={loading || !input.trim()}
-                        className="wai-send-btn">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                          <path d="M22 2L11 13" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </button>
+                    <div className="wai-input-bar-row">
+                      {/* Standalone Mic Button with label */}
+                      <div className="wai-mic-column">
+                        <button type="button" onClick={handleVoiceInputClick} disabled={loading}
+                          className={`wai-standalone-mic${isListening ? ' wai-standalone-mic-active' : ''}`}
+                          title={isListening ? 'Stop' : 'Talk to Specialist'}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            {isListening
+                              ? <><rect x="8" y="8" width="8" height="8" rx="2" /></>
+                              : <><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></>}
+                          </svg>
+                        </button>
+                        <span className="wai-mic-label">{isListening ? 'Listening...' : <><span>Talk to</span><span>Specialist</span></>}</span>
+                      </div>
+                      {/* Text input + Send */}
+                      <div className="wai-input-group">
+                        <div className="wai-input-wrap">
+                          <input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value)}
+                            placeholder={inputPlaceholder}
+                            disabled={loading}
+                            className="wai-input" />
+                          <button type="submit" disabled={loading || !input.trim()}
+                            className="wai-send-btn">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                              <path d="M22 2L11 13" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </button>
+                        </div>
+                        <p className="wai-input-hint">Powered by Wellness AI</p>
+                      </div>
                     </div>
-                    <p className="wai-input-hint">Powered by Wellness AI</p>
                   </form>
                 )}
               </div>
@@ -3230,9 +3244,49 @@ export default function AgentChat({
             )}{/* end chatMode conditional */}
           </div>{/* end wai-panels */}
 
+          {/* ══ VOICE POPUP OVERLAY ══ */}
+          {showVoicePopup && (
+            <div className="wai-voice-popup-overlay">
+              <div className="wai-voice-popup-modal">
+                <button type="button" className="wai-voice-popup-close" onClick={() => {
+                  setShowVoicePopup(false);
+                  if (isListening && recognitionRef.current) {
+                    try { recognitionRef.current.stop(); } catch (e) { }
+                    setIsListening(false);
+                  }
+                }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+                <div className="wai-voice-popup-content">
+                  <h3 className="wai-voice-popup-title">Speak Your Concern</h3>
+                  <p className="wai-voice-popup-subtitle">I'm listening and ready to help.</p>
+
+                  <div className="wai-voice-popup-mic-wrap">
+                    <span className={`wai-voice-popup-ring${isListening ? ' wai-voice-popup-ring-active' : ''}`} />
+                    <button type="button" onClick={handleVoiceInput} disabled={loading}
+                      className={`wai-voice-popup-mic${isListening ? ' wai-voice-popup-mic-active' : ''}`}
+                      title={isListening ? 'Stop recording' : 'Start recording'}>
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        {isListening
+                          ? <><rect x="8" y="8" width="8" height="8" rx="2" /></>
+                          : <><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></>}
+                      </svg>
+                    </button>
+                  </div>
+
+                  <p className={`wai-voice-popup-status${isListening ? ' wai-voice-popup-status-active' : ''}`}>
+                    {isListening ? 'Listening... Tap mic to stop' : 'Tap the microphone to speak'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ══ Styles ══ */}
           <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Dosis:wght@400;600;700;800&family=Montserrat:wght@400;500;600;700;800&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Dosis:wght@400;600;700;800&family=Montserrat:wght@400;500;600;700;800&display=swap');
           /* ── Outer frame: fills the full iframe ── */
           .wai-frame {
             width: 100%;
@@ -3240,9 +3294,9 @@ export default function AgentChat({
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            border-radius: 16px;
-            border: 1.5px solid rgba(192,57,43,0.25);
-            box-shadow: 0 0 24px rgba(192,57,43,0.18), 0 0 48px rgba(192,57,43,0.07);
+            border-radius: 20px;
+            border: 1px solid rgba(192,57,43,0.12);
+            box-shadow: 0 8px 40px rgba(192,57,43,0.12), 0 2px 8px rgba(0,0,0,0.04);
           }
 
           /* ── Root layout ─────────────────────────────── */
@@ -3251,10 +3305,23 @@ export default function AgentChat({
             flex-direction: column;
             flex: 1;
             height: 100%;
+            position: relative;
             overflow: hidden;
-            background: linear-gradient(160deg, #FFF0EE 0%, #FAE8E5 40%, #F5DBD7 100%);
-            font-family: 'Montserrat', 'Dosis', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(145deg, #FEF7F6 0%, #FDF0EE 30%, #FAE5E2 60%, #F5DBD7 100%);
+            font-family: 'Inter', 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             color: #2F3336;
+            -webkit-font-smoothing: antialiased;
+          }
+          .wai-root::before {
+            content: ''; position: absolute; top: -40%; right: -20%;
+            width: 400px; height: 400px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(227,83,83,0.05) 0%, transparent 70%);
+            pointer-events: none; z-index: 0;
+            animation: wai-orb-float 20s ease-in-out infinite;
+          }
+          @keyframes wai-orb-float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(30px, -20px) scale(1.08); }
           }
 
           /* ── Panels container (row on desktop, column on mobile) ── */
@@ -3272,25 +3339,37 @@ export default function AgentChat({
             flex-direction: column;
             width: 45%;
             min-width: 260px;
-            border-right: 1px solid rgba(192,57,43,0.15);
-            background: linear-gradient(180deg, #FFF0EE 0%, #FAE8E5 100%);
+            border-right: 1px solid rgba(192,57,43,0.06);
+            background: linear-gradient(180deg, #FEFAFA 0%, #FDF0EE 40%, #FAE8E5 100%);
             flex-shrink: 0;
+            position: relative; z-index: 1;
           }
 
           /* ── Header ──────────────────────────────────── */
           .wai-header {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 12px 14px 10px;
-            background: linear-gradient(135deg, #C0392B 0%, #E35353 55%, #C0392B 100%);
+            gap: 12px;
+            padding: 14px 16px 12px;
+            background: linear-gradient(135deg, #B5322A 0%, #D44840 40%, #C0392B 100%);
             flex-shrink: 0;
-            box-shadow: 0 3px 12px rgba(192,57,43,0.35);
+            box-shadow: 0 4px 20px rgba(192,57,43,0.3), 0 1px 3px rgba(0,0,0,0.1);
+            position: relative; overflow: hidden; z-index: 2;
+          }
+          .wai-header::after {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 50%, transparent 100%);
+            animation: wai-header-shimmer 6s ease-in-out infinite;
+            pointer-events: none;
+          }
+          @keyframes wai-header-shimmer {
+            0%, 100% { transform: translateX(-100%); }
+            50% { transform: translateX(100%); }
           }
           .wai-avatar {
-            width: 40px; height: 40px; border-radius: 50%;
-            background: rgba(255,255,255,0.22);
-            border: 2px solid rgba(255,255,255,0.45);
+            width: 42px; height: 42px; border-radius: 50%;
+            background: rgba(255,255,255,0.18);
+            border: 2.5px solid rgba(255,255,255,0.45);
             display: flex; align-items: center; justify-content: center;
             backdrop-filter: blur(4px);
             animation: wai-avatar-breathe 3s ease-in-out infinite;
@@ -3300,15 +3379,20 @@ export default function AgentChat({
           }
           .wai-online-dot {
             position: absolute; bottom: 1px; right: 1px;
-            width: 10px; height: 10px;
+            width: 11px; height: 11px;
             background: #4ade80; border-radius: 50%;
-            border: 2px solid #C0392B;
-            box-shadow: 0 0 0 2px rgba(74,222,128,0.3), 0 0 8px rgba(74,222,128,0.4);
+            border: 2.5px solid #C0392B;
+            box-shadow: 0 0 0 2px rgba(74,222,128,0.25), 0 0 10px rgba(74,222,128,0.5);
+            animation: wai-online-pulse 2s ease-in-out infinite;
+          }
+          @keyframes wai-online-pulse {
+            0%, 100% { box-shadow: 0 0 0 2px rgba(74,222,128,0.25), 0 0 10px rgba(74,222,128,0.5); }
+            50% { box-shadow: 0 0 0 4px rgba(74,222,128,0.12), 0 0 16px rgba(74,222,128,0.3); }
           }
           .wai-agent-name {
-            margin: 0; font-size: 13px; font-weight: 700;
+            margin: 0; font-size: 14px; font-weight: 700;
             color: #fff; line-height: 1.3;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.15);
+            letter-spacing: -0.01em;
           }
           .wai-agent-status {
             margin: 0; font-size: 10px; font-weight: 500;
@@ -3319,43 +3403,50 @@ export default function AgentChat({
           /* ── Messages ────────────────────────────────── */
           .wai-messages {
             flex: 1; overflow-y: auto; min-height: 0;
-            padding: 14px 12px;
+            padding: 16px 14px;
             background: transparent;
+            position: relative; z-index: 1;
           }
           .wai-messages::-webkit-scrollbar { width: 3px; }
           .wai-messages::-webkit-scrollbar-thumb { background: #e8c9be; border-radius: 4px; }
           .wai-messages-inner { display: flex; flex-direction: column; gap: 12px; }
 
           /* ── Message rows ────────────────────────────── */
-          .wai-msg-row { display: flex; align-items: flex-end; gap: 7px; animation: wai-msg-appear 0.3s ease-out; }
+          .wai-msg-row { display: flex; align-items: flex-end; gap: 8px; animation: wai-msg-slide-in 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
           .wai-msg-user-row { justify-content: flex-end; }
           .wai-msg-avatar {
-            width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
-            background: #2C2C2C;
+            width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+            background: linear-gradient(135deg, #2C2C2C 0%, #444 100%);
             display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 2px 6px rgba(44,44,44,0.2);
+            box-shadow: 0 2px 8px rgba(44,44,44,0.2);
+            border: 1.5px solid rgba(255,255,255,0.08);
           }
 
           /* ── Bubbles ─────────────────────────────────── */
           .wai-bubble {
-            max-width: 82%; padding: 10px 14px;
-            border-radius: 18px; position: relative;
-            line-height: 1.6;
+            max-width: 82%; padding: 11px 15px;
+            border-radius: 20px; position: relative;
+            line-height: 1.65;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
           }
+          .wai-bubble:hover { transform: translateY(-1px); }
           .wai-bubble-ai {
-            background: #FFFFFF;
-            border: 1px solid #E8E0D8;
-            border-bottom-left-radius: 4px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(232,224,216,0.6);
+            border-bottom-left-radius: 6px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.04), 0 0 0 1px rgba(255,255,255,0.5) inset;
           }
           .wai-bubble-user {
-            background: #2C2C2C;
-            border-bottom-right-radius: 4px;
-            box-shadow: 0 2px 8px rgba(44,44,44,0.25);
+            background: linear-gradient(135deg, #2C2C2C 0%, #3a3a3a 100%);
+            border-bottom-right-radius: 6px;
+            box-shadow: 0 3px 12px rgba(44,44,44,0.2);
           }
           .wai-bubble-text {
-            margin: 0; font-size: 12.5px; line-height: 1.6;
+            margin: 0; font-size: 13px; line-height: 1.65;
             white-space: pre-wrap; word-break: break-word;
+            letter-spacing: -0.005em;
           }
           .wai-bubble-ai .wai-bubble-text { color: #2C2C2C; }
           .wai-bubble-user .wai-bubble-text { color: #fff; }
@@ -3363,24 +3454,33 @@ export default function AgentChat({
           .wai-time-user { color: rgba(255,255,255,0.5); text-align: right; }
 
           /* ── Typing indicator ────────────────────────── */
-          .wai-typing { display: flex; align-items: center; gap: 5px; padding: 12px 16px; }
+          .wai-typing { display: flex; align-items: center; gap: 6px; padding: 12px 16px; }
           .wai-dot {
-            width: 7px; height: 7px; border-radius: 50%; background: #C0392B;
-            animation: wai-bounce 1.3s ease-in-out infinite;
+            width: 8px; height: 8px; border-radius: 50%;
+            background: linear-gradient(135deg, #C0392B, #E35353);
+            animation: wai-bounce 1.4s ease-in-out infinite;
+            box-shadow: 0 1px 4px rgba(192,57,43,0.2);
           }
-          @keyframes wai-bounce { 0%,80%,100%{transform:translateY(0);opacity:0.5} 40%{transform:translateY(-6px);opacity:1} }
+          @keyframes wai-bounce { 0%,80%,100%{transform:translateY(0) scale(0.85);opacity:0.4} 40%{transform:translateY(-8px) scale(1);opacity:1} }
 
           /* ── Suggestion chips ────────────────────────── */
-          .wai-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+          .wai-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
           .wai-chip {
-            padding: 5px 12px; border-radius: 20px;
-            border: 1.5px solid #C0392B; background: #FFFFFF;
-            color: #C0392B; font-size: 11.5px; font-weight: 600;
-            cursor: pointer; transition: all 0.15s;
+            padding: 6px 14px; border-radius: 22px;
+            border: 1.5px solid rgba(192,57,43,0.35); background: rgba(255,255,255,0.9);
+            color: #b5322a; font-size: 11.5px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            backdrop-filter: blur(4px);
           }
-          .wai-chip:hover { background: #C0392B; border-color: #C0392B; color: #fff; transform: translateY(-1px); }
-          .wai-chip-muted { border-color: #d1d5db; background: #f9fafb; color: #6b7280; }
-          .wai-chip-muted:hover { background: #6b7280; border-color: #6b7280; color: #fff; }
+          .wai-chip:hover {
+            background: linear-gradient(135deg, #C0392B, #E35353);
+            border-color: transparent; color: #fff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 14px rgba(192,57,43,0.25);
+          }
+          .wai-chip:active { transform: translateY(0) scale(0.97); }
+          .wai-chip-muted { border-color: rgba(209,213,219,0.6); background: rgba(249,250,251,0.9); color: #6b7280; }
+          .wai-chip-muted:hover { background: linear-gradient(135deg, #6b7280, #9ca3af); border-color: transparent; color: #fff; box-shadow: 0 4px 14px rgba(107,114,128,0.25); }
 
           /* ── Welcome screen ──────────────────────────── */
           .wai-welcome {
@@ -3413,40 +3513,193 @@ export default function AgentChat({
 
           /* ── Input bar ───────────────────────────────── */
           .wai-input-bar {
-            flex-shrink: 0; padding: 10px 12px 12px;
-            border-top: 1px solid #f0e4dd; background: #F7F3EE;
+            flex-shrink: 0; padding: 12px 14px 10px;
+            border-top: 1px solid rgba(240,228,221,0.5);
+            background: linear-gradient(to top, rgba(250,245,242,0.98) 0%, rgba(254,250,248,0.95) 100%);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            position: relative; z-index: 2;
           }
+
+          /* ── Input bar row: mic column + input group ── */
+          .wai-input-bar-row {
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
+          }
+
+          /* ── Mic column: button + label stacked ── */
+          .wai-mic-column {
+            display: flex; flex-direction: column; align-items: center;
+            gap: 4px; flex-shrink: 0;
+          }
+          .wai-mic-label {
+            font-size: 8.5px; font-weight: 600; color: #b5322a;
+            text-align: center; line-height: 1.15;
+            letter-spacing: 0.02em;
+            opacity: 0.8;
+            display: flex; flex-direction: column;
+            align-items: center; gap: 0;
+          }
+
+          /* ── Input group: wrap + hint stacked ── */
+          .wai-input-group {
+            width: 100%; min-width: 0;
+            display: flex; flex-direction: column; gap: 0;
+          }
+
           .wai-input-wrap {
             display: flex; align-items: center; gap: 6px;
-            background: #FFFFFF; border: 1.5px solid #DDD5CC;
-            border-radius: 28px; padding: 6px 6px 6px 12px;
-            transition: border-color 0.15s, box-shadow 0.15s;
+            background: rgba(255,255,255,0.95); border: 1.5px solid rgba(221,213,204,0.45);
+            border-radius: 26px; padding: 5px 5px 5px 16px;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 1px 6px rgba(0,0,0,0.03);
           }
-          .wai-input-wrap:focus-within { border-color: #C0392B; box-shadow: 0 0 0 3px rgba(192,57,43,0.1), 0 0 12px rgba(192,57,43,0.06); }
+          .wai-input-wrap:focus-within {
+            border-color: rgba(192,57,43,0.5);
+            box-shadow: 0 0 0 3px rgba(192,57,43,0.06), 0 2px 12px rgba(192,57,43,0.06);
+            background: #fff;
+          }
           .wai-input {
             flex: 1; min-width: 0; border: none; outline: none;
-            background: transparent; font-size: 12.5px; color: #2C2C2C;
+            background: transparent; font-size: 13px; color: #2C2C2C;
+            font-family: inherit;
           }
-          .wai-input::placeholder { color: #B0A89E; }
-          .wai-mic-btn {
-            background: none; border: none; cursor: pointer;
-            padding: 3px; color: #9ca3af;
-            display: flex; align-items: center; flex-shrink: 0;
-            transition: color 0.15s;
-          }
-          .wai-mic-btn:hover { color: #C0392B; }
-          .wai-mic-active { color: #ef4444 !important; }
-          .wai-send-btn {
-            width: 34px; height: 34px; border-radius: 50%;
-            background: #C0392B;
+          .wai-input::placeholder { color: #B8AFA6; font-size: 12.5px; }
+
+          /* ── Standalone Mic Button ── */
+          .wai-standalone-mic {
+            width: 42px; height: 42px; border-radius: 50%;
+            background: linear-gradient(145deg, #C0392B 0%, #E74C3C 50%, #D44840 100%);
             border: none; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
-            flex-shrink: 0; transition: all 0.15s;
-            box-shadow: 0 2px 8px rgba(192,57,43,0.3);
+            flex-shrink: 0; color: #fff;
+            box-shadow: 0 4px 16px rgba(192,57,43,0.35);
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            animation: wai-mic-breathe 3s ease-in-out infinite;
+            position: relative;
           }
-          .wai-send-btn:hover:not(:disabled) { transform: scale(1.08); box-shadow: 0 4px 14px rgba(192,57,43,0.4); }
-          .wai-send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-          .wai-input-hint { margin: 5px 0 0; text-align: center; font-size: 9.5px; color: #d1d5db; letter-spacing: 0.02em; }
+          .wai-standalone-mic::before {
+            content: ''; position: absolute; inset: -5px;
+            border-radius: 50%; border: 1.5px solid rgba(192,57,43,0.12);
+            animation: wai-mic-ring 3s ease-in-out infinite;
+            pointer-events: none;
+          }
+          .wai-standalone-mic:hover:not(:disabled) {
+            transform: scale(1.08);
+            box-shadow: 0 6px 22px rgba(192,57,43,0.4);
+          }
+          .wai-standalone-mic:active:not(:disabled) { transform: scale(0.95); }
+          .wai-standalone-mic:disabled { opacity: 0.35; cursor: not-allowed; animation: none; }
+          .wai-standalone-mic:disabled::before { animation: none; border-color: transparent; }
+          .wai-standalone-mic-active {
+            background: linear-gradient(145deg, #ef4444 0%, #dc2626 100%) !important;
+            box-shadow: 0 4px 20px rgba(239,68,68,0.45) !important;
+            animation: wai-mic-pulse-active 1.2s ease-in-out infinite !important;
+          }
+          .wai-standalone-mic-active::before {
+            border-color: rgba(239,68,68,0.25) !important;
+            animation: wai-mic-ring-active 1.2s ease-in-out infinite !important;
+          }
+          @keyframes wai-mic-breathe {
+            0%, 100% { box-shadow: 0 4px 16px rgba(192,57,43,0.35); }
+            50% { box-shadow: 0 5px 20px rgba(192,57,43,0.25), 0 0 0 6px rgba(192,57,43,0.04); }
+          }
+          @keyframes wai-mic-ring {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.06); opacity: 0.25; }
+          }
+          @keyframes wai-mic-pulse-active {
+            0%, 100% { box-shadow: 0 4px 20px rgba(239,68,68,0.45); }
+            50% { box-shadow: 0 4px 24px rgba(239,68,68,0.55), 0 0 0 8px rgba(239,68,68,0.06); }
+          }
+          @keyframes wai-mic-ring-active {
+            0%, 100% { transform: scale(1); opacity: 0.7; }
+            50% { transform: scale(1.12); opacity: 0.15; }
+          }
+
+          /* ── Voice Popup Modal ────────── */
+          .wai-voice-popup-overlay {
+            position: absolute; inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(8px);
+            z-index: 50; display: flex; align-items: center; justify-content: center;
+            opacity: 0; animation: wai-popup-fade-in 0.25s ease forwards;
+            padding: 20px;
+          }
+          .wai-voice-popup-modal {
+            background: #fff; width: 100%; max-width: 340px;
+            border-radius: 24px; padding: 32px 24px;
+            box-shadow: 0 12px 48px rgba(0,0,0,0.2);
+            position: relative;
+            transform: scale(0.95) translateY(10px);
+            animation: wai-popup-slide-up 0.3s cubic-bezier(.34,1.56,.64,1) forwards;
+            display: flex; flex-direction: column; align-items: center;
+          }
+          .wai-voice-popup-close {
+            position: absolute; top: 16px; right: 16px;
+            background: #f3f4f6; border: none; border-radius: 50%;
+            width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+            color: #6b7280; cursor: pointer; transition: all 0.2s;
+          }
+          .wai-voice-popup-close:hover { background: #e5e7eb; color: #111827; }
+          .wai-voice-popup-content {
+            display: flex; flex-direction: column; align-items: center; width: 100%;
+          }
+          .wai-voice-popup-title {
+            margin: 0 0 6px; font-size: 20px; font-weight: 800; color: #1f2937; text-align: center;
+          }
+          .wai-voice-popup-subtitle {
+            margin: 0 0 32px; font-size: 13px; color: #6b7280; text-align: center;
+          }
+          .wai-voice-popup-mic-wrap {
+            position: relative; width: 100px; height: 100px;
+            margin-bottom: 24px; display: flex; align-items: center; justify-content: center;
+          }
+          .wai-voice-popup-ring {
+            position: absolute; inset: 0; border-radius: 50%;
+            border: 2px solid rgba(227,83,83,0.3);
+            pointer-events: none;
+          }
+          .wai-voice-popup-ring-active {
+            border-color: rgba(227,83,83,0.6);
+            animation: wai-voice-ring-pulse 1.2s ease-in-out infinite;
+          }
+          .wai-voice-popup-mic {
+            width: 80px; height: 80px; border-radius: 50%;
+            border: none; cursor: pointer;
+            background: linear-gradient(135deg, rgba(227,83,83,0.1), rgba(192,57,43,0.06));
+            color: #C0392B; box-shadow: 0 4px 16px rgba(227,83,83,0.15);
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.3s; position: relative; z-index: 2;
+          }
+          .wai-voice-popup-mic:hover {
+            transform: scale(1.05); box-shadow: 0 6px 24px rgba(227,83,83,0.25);
+          }
+          .wai-voice-popup-mic-active {
+            background: linear-gradient(135deg, #C0392B, #E35353) !important;
+            color: #fff !important;
+            box-shadow: 0 6px 32px rgba(227,83,83,0.5) !important;
+            animation: wai-voice-cta-pulse-active 1.5s ease-in-out infinite !important;
+          }
+          .wai-voice-popup-status {
+            font-size: 13px; font-weight: 600; color: #6b7280; text-align: center;
+            transition: color 0.3s;
+          }
+          .wai-voice-popup-status-active { color: #E35353; }
+          
+          @keyframes wai-popup-fade-in { to { opacity: 1; } }
+          @keyframes wai-popup-slide-up { to { transform: scale(1) translateY(0); } }
+          .wai-send-btn {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: linear-gradient(135deg, #C0392B 0%, #E35353 100%);
+            border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 3px 12px rgba(192,57,43,0.3);
+          }
+          .wai-send-btn:hover:not(:disabled) { transform: scale(1.1); box-shadow: 0 5px 18px rgba(192,57,43,0.4); }
+          .wai-send-btn:active:not(:disabled) { transform: scale(0.95); }
+          .wai-send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+          .wai-input-hint { margin: 4px 4px 0 16px; text-align: left; font-size: 9px; color: #ccc; letter-spacing: 0.03em; font-weight: 400; }
 
           /* ── Voice panel ───────────────────────────── */
           .wai-voice-panel {
@@ -3622,7 +3875,8 @@ export default function AgentChat({
           .wai-empty-state {
             flex: 1; display: flex; flex-direction: column;
             align-items: center; justify-content: center;
-            padding: 30px 20px; text-align: center; gap: 8px;
+            padding: 32px 24px; text-align: center; gap: 10px;
+            position: relative; z-index: 1;
           }
           .wai-empty-icon {
             width: 88px; height: 88px; border-radius: 50%;
@@ -3634,12 +3888,18 @@ export default function AgentChat({
           .wai-empty-desc { margin: 0; font-size: 12px; color: #6b7280; max-width: 220px; line-height: 1.7; }
           .wai-empty-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
           .wai-empty-chip {
-            padding: 7px 16px; border-radius: 22px;
-            border: 1.5px solid #d1d5db; background: #fff;
-            font-size: 11.5px; font-weight: 600; color: #374151;
-            cursor: pointer; transition: all 0.18s;
+            padding: 8px 18px; border-radius: 24px;
+            border: 1.5px solid rgba(209,213,219,0.5); background: rgba(255,255,255,0.9);
+            font-size: 12px; font-weight: 600; color: #374151;
+            cursor: pointer; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            backdrop-filter: blur(4px);
           }
-          .wai-empty-chip:hover { border-color: #E35353; color: #c43a3a; background: rgba(227,83,83,0.07); transform: translateY(-1px); }
+          .wai-empty-chip:hover {
+            border-color: transparent; color: #fff;
+            background: linear-gradient(135deg, #C0392B, #E35353);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(227,83,83,0.25);
+          }
 
           /* ── Product grid ────────────────────────────── */
           .wai-product-scroll { flex: 1; overflow-y: auto; padding: 14px; }
@@ -3651,7 +3911,7 @@ export default function AgentChat({
             border: 1px solid #f0ddd5; display: flex; flex-direction: column;
             box-shadow: 0 2px 12px rgba(0,0,0,0.06); transition: all 0.2s;
           }
-          .wai-product-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(227,83,83,0.12); border-color: #e8b8ae; }
+          .wai-product-card:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(227,83,83,0.14); border-color: #e8b8ae; }
           .wai-product-img-wrap { position: relative; flex-shrink: 0; }
           .wai-product-img { width: 100%; height: 90px; object-fit: cover; display: block; }
           .wai-product-img-placeholder {
@@ -3734,6 +3994,10 @@ export default function AgentChat({
           @keyframes wai-msg-appear {
             from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes wai-msg-slide-in {
+            from { opacity: 0; transform: translateY(12px) scale(0.97); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
           }
           @keyframes wai-hub-pulse {
             0%, 100% { box-shadow: 0 0 0 8px rgba(227,83,83,0.15), 0 6px 24px rgba(227,83,83,0.3); }
@@ -4116,15 +4380,16 @@ export default function AgentChat({
           .wai-chat-subheader {
             display: flex; /* visible on all screen widths */
             align-items: center; gap: 10px;
-            padding: 10px 14px 8px;
-            background: rgba(255,255,255,0.85);
-            border-bottom: 1px solid #f0e4dd;
+            padding: 10px 16px 8px;
+            background: rgba(255,255,255,0.75);
+            border-bottom: 1px solid rgba(240,228,221,0.5);
             flex-shrink: 0;
-            backdrop-filter: blur(8px);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
           }
           .wai-chat-subheader-label {
             font-size: 13px; font-weight: 700; color: #111827;
-            flex: 1;
+            flex: 1; letter-spacing: -0.01em;
           }
 
           /* ── Back button — circular icon style matching wai-offers-back ── */
