@@ -19,9 +19,9 @@ This AI Agent SaaS follows a traditional server-side architecture optimized for 
    - Filesystem file storage
 
 3. **Database Layer**
-   - PostgreSQL for relational data (users, agents, documents, messages)
+   - Neon Serverless Postgres for autoscaling relational data (users, agents, documents, messages)
    - Prisma ORM for type-safe database access
-   - Supabase (pgvector) for vector embeddings
+   - Supabase / Neon (pgvector) for vector embeddings
 
 4. **AI Services**
    - OpenAI GPT-4o-mini for chat completions
@@ -29,6 +29,13 @@ This AI Agent SaaS follows a traditional server-side architecture optimized for 
    - ElevenLabs for text-to-speech
 
 ## Data Flow
+
+### Wellness Consultation & Sales Flow
+
+1. **State Machine Initiation:** User is greeted in a modern glassmorphic UI, optionally selects consultation language.
+2. **AI Intake Flow:** System sequentially asks dynamic questions based on the user's primary concern.
+3. **Sales Agent Bundle Generation (`/api/sales-agent`):** Upon intent completion, the AI matches user data to database product packs using exact duration mapping rules to create an optimized bundle.
+4. **Shopify Cart Integration:** Resolved `shopify_variant_id` arrays and exact quantities are combined into a 1-click Shopify checkout URL payload.
 
 ### Chat Flow with RAG
 
@@ -45,12 +52,12 @@ This AI Agent SaaS follows a traditional server-side architecture optimized for 
 
 1. User uploads document via dashboard
 2. File saved to filesystem (`/uploads` directory)
-3. Document record created in PostgreSQL with status "pending"
+3. Document record created in Neon Postgres with status "pending"
 4. Background processing starts:
    - Text extraction (PDF/DOCX/TXT)
    - Text chunking (1000 chars with 200 char overlap)
    - Embedding generation (batch processing)
-   - Vector storage in Supabase
+   - Vector storage via pgvector
 5. Document status updated to "completed" or "failed"
 
 ## Security Architecture
@@ -96,7 +103,7 @@ This AI Agent SaaS follows a traditional server-side architecture optimized for 
     ┌────┴────┐
     │         │
 ┌───▼───┐ ┌──▼────┐
-│Postgres│ │Supabase│
+│ NeonDB │ │Supabase│
 └────────┘ └───────┘
 ```
 
