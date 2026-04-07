@@ -2027,7 +2027,7 @@ export default function AgentChat({
             {/* ── Centered content ── */}
             <div className="wai-landing-body">
               <div className="wai-landing-lock">
-                <img src="/chat-bubble.png" alt="Chat Bubble" width="36" height="36" style={{ objectFit: 'contain' }} />
+                <img src="/chat-bubble.png" alt="Chat Bubble" width="28" height="28" style={{ objectFit: 'contain' }} />
               </div>
               <h1 className="wai-landing-title">Safe. Secure. Private</h1>
               <p className="wai-landing-subtitle">Select language</p>

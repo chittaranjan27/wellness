@@ -121,30 +121,15 @@
 }
 
 .wai-landing-lock {
-  width: 72px;
-  height: 72px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
-  border: 2px solid rgba(225, 217, 217, 0.35);
-  background: rgba(255, 255, 255, 0.856);
+  border: 1.5px solid rgba(225, 217, 217, 0.35);
+  background: rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 24px;
-  animation: wai-chat-pulse 1.6s ease-in-out infinite;
-}
-
-@keyframes wai-chat-pulse {
-
-  0%,
-  100% {
-    transform: scale(1);
-    box-shadow: 0 0 12px rgba(255, 100, 100, 0.3), 0 0 0 0 rgba(255, 100, 100, 0.2);
-  }
-
-  50% {
-    transform: scale(1.12);
-    box-shadow: 0 0 24px rgba(255, 100, 100, 0.5), 0 0 0 14px rgba(255, 100, 100, 0.1);
-  }
+  margin-bottom: 16px;
 }
 
 .wai-landing-title {
@@ -157,7 +142,7 @@
 }
 
 .wai-landing-subtitle {
-  margin: 0 0 40px;
+  margin: 0 0 24px;
   font-size: 16px;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.8);
@@ -261,7 +246,7 @@
 
   .wai-landing-subtitle {
     font-size: 14px;
-    margin-bottom: 32px;
+    margin-bottom: 20px;
   }
 
   .wai-landing-lang-row {
@@ -291,7 +276,7 @@
 
   .wai-landing-subtitle {
     font-size: 12px;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
   }
 
   .wai-landing-lang-row {
@@ -2658,19 +2643,7 @@
     border-radius: 0;
     border: none;
     box-shadow: none;
-    /* Prevent fluctuating size during scrolling on mobile */
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    height: 100vh;
-    /* fallback */
-    height: 100svh;
-    min-height: 100svh;
-    max-height: 100svh;
-    z-index: 9999;
-    overscroll-behavior: none;
+    height: 100%;
   }
 
   .wai-root {
