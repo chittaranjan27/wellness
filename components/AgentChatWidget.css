@@ -1611,23 +1611,25 @@
 .wai-product-img-wrap {
   position: relative;
   flex-shrink: 0;
+  background: linear-gradient(135deg, #fef5f3 0%, #fce8e4 50%, #f5d0c8 100%);
 }
 
 .wai-product-img {
   width: 100%;
-  height: 90px;
-  object-fit: cover;
+  height: 160px;
+  object-fit: contain;
   display: block;
+  padding: 8px;
 }
 
 .wai-product-img-placeholder {
   width: 100%;
-  height: 90px;
+  height: 160px;
   background: linear-gradient(135deg, #fce8e4 0%, #f5d0c8 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
+  font-size: 36px;
 }
 
 .wai-best-badge {
@@ -2879,12 +2881,13 @@
   }
 
   .wai-product-img {
-    height: 160px !important;
+    height: 200px !important;
+    padding: 12px !important;
   }
 
   .wai-product-img-placeholder {
-    height: 160px !important;
-    font-size: 36px !important;
+    height: 200px !important;
+    font-size: 42px !important;
   }
 
   .wai-product-body {

@@ -3,20 +3,20 @@
  *
  * Sales-focused endpoint that:
  * 1. Receives user concern + conversation history
- * 2. Loads products & pricing from PostgreSQL (with supply_days for trial grouping)
- * 3. Calls GPT-4o-mini with a sales system prompt including the product catalog
- * 4. GPT returns which product to recommend as primary, which as supporting
- * 5. Builds plans for standard tiers (15, 30, 60, 90 days) using REAL packs:
- *    — If an exact-duration pack exists (e.g. 60-day pack), use it (qty=1)
- *    — If not, combine smaller packs (e.g. 2×30-day = 60 days)
- * 6. Fetches Shopify catalog to resolve correct variant IDs
- * 7. Returns bundles, warm response, suggestion chips, and order metadata
+ * 2. Fetches the LIVE Shopify product catalog (real prices, real variant IDs)
+ * 3. Enriches with DB metadata (dosage, results_timeline, health_issues, supply_days) when available
+ * 4. Calls GPT-4o-mini with a sales system prompt + enriched catalog
+ * 5. GPT returns structured combo plans with real product IDs, quantities, and roles
+ * 6. Returns validated bundles with actual Shopify prices + variant IDs ready for cart
+ *
+ * KEY DESIGN: Products come from Shopify (source of truth for price/availability),
+ * enriched with DB metadata. Plans are built by GPT based on the user's condition.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { OpenAI } from 'openai'
 import { env } from '@/lib/env'
-import { getAllShopifyProducts, isShopifyConfigured } from '@/lib/shopify'
+import { getAllShopifyProducts, isShopifyConfigured, type ShopifyProduct } from '@/lib/shopify'
 
 export const runtime = 'nodejs'
 
@@ -39,23 +39,56 @@ export async function OPTIONS(req: NextRequest) {
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface DBProduct {
-  product_id: string
-  product_name: string
-  price_inr_min: string
-  price_inr_max: string
-  supply_days: number
-  funnel_role: string
-  discount_eligible: boolean
-  discount_pct: string | null
-  health_issues: string | null
-  dosage_instructions: string | null
-  results_timeline: string | null
-  image_url: string | null
-  shopify_url: string | null
-  shopify_variant_id: string | null
+
+/** Enriched product combining Shopify live data + DB metadata */
+interface EnrichedProduct {
+  // From Shopify (source of truth)
+  shopifyId: string
+  handle: string
+  title: string
+  description: string
+  productType: string
+  tags: string[]
+  imageUrl: string | null
+  shopifyUrl: string
+  variants: Array<{
+    id: string
+    title: string
+    price: number
+    currencyCode: string
+    available: boolean
+  }>
+  // Best price (cheapest available variant)
+  price: number
+  // From DB enrichment (may be null if not in DB)
+  supplyDays: number
+  healthIssues: string | null
+  dosageInstructions: string | null
+  resultsTimeline: string | null
+  funnelRole: string
 }
 
+/** What GPT returns for each product in a plan */
+interface GPTPlanProduct {
+  handle: string          // Shopify product handle
+  variantIndex: number    // which variant to use (0-based index)
+  quantity: number        // how many to add
+  role: 'primary' | 'supporting'
+  reason: string          // why this product is included
+}
+
+/** What GPT returns for each plan */
+interface GPTPlan {
+  name: string
+  tagline: string
+  durationLabel: string
+  durationDays: number
+  products: GPTPlanProduct[]
+  expectedResults: string
+  recommended: boolean
+}
+
+/** Final bundle product for frontend */
 interface BundleProduct {
   productId: string
   productName: string
@@ -63,10 +96,10 @@ interface BundleProduct {
   imageUrl: string | null
   shopifyUrl: string | null
   shopifyVariantId: string | null
-  price: number        // price PER UNIT of this pack
-  quantity: number     // how many of this pack to add (e.g. 2×30-day = 60 days)
-  supplyDays: number   // supply_days of the individual pack
-  totalDays: number    // effective days this line covers = supplyDays × quantity
+  price: number        // price PER UNIT
+  quantity: number     // how many to add
+  supplyDays: number
+  totalDays: number
   dosageInstructions: string | null
   resultsTimeline: string | null
 }
@@ -74,10 +107,10 @@ interface BundleProduct {
 interface Bundle {
   name: string
   tagline: string
-  duration: number         // target duration in days
+  duration: number
   durationLabel: string
   products: BundleProduct[]
-  totalPrice: number       // sum of (price × quantity) for all products
+  totalPrice: number
   perDayPrice: number
   savingsLabel: string | null
   expectedResults: string
@@ -96,356 +129,139 @@ function getProductBaseName(title: string): string {
     .trim()
 }
 
-function extractDays(title: string): number | null {
-  const match = title.match(/\b(\d+)\s*[-–]?\s*(day|days)\b/i)
-  if (match) return parseInt(match[1], 10)
-  const monthMatch = title.match(/\b(\d+)\s*[-–]?\s*(month|months)\b/i)
-  if (monthMatch) return parseInt(monthMatch[1], 10) * 30
-  return null
-}
-
-// ─── Shopify types ────────────────────────────────────────────────────────────
-interface ShopifyVariantInfo {
-  id: string
-  title: string
-  price: string
-  available: boolean
-}
-
-interface ShopifyProductInfo {
-  id: string
-  title: string
-  handle: string
-  imageUrl: string | null
-  url: string
-  variants: ShopifyVariantInfo[]
-}
-
-// ─── Pack-selection logic ─────────────────────────────────────────────────────
-
 /**
- * For a given target duration, figure out which pack to use and how many.
- *
- * Strategy (greedy, prefer exact match):
- *  1. If an exact-duration pack exists → use it, qty=1
- *  2. Otherwise, find the largest pack that divides evenly into targetDays
- *  3. If none divides evenly, find the largest pack ≤ targetDays and use
- *     ceil(targetDays / packDays) units
- *  4. Fallback: use the smallest available pack with appropriate qty
- *
- * Returns { product, quantity } or null if no variants exist.
+ * Fetch live Shopify products and enrich with DB metadata.
+ * Shopify is the source of truth for: price, availability, variant IDs, images.
+ * DB enriches with: supply_days, dosage_instructions, results_timeline, health_issues.
  */
-function selectPackForDuration(
-  variants: DBProduct[],
-  targetDays: number
-): { product: DBProduct; quantity: number } | null {
-  if (variants.length === 0) return null
-
-  // Sort variants by supply_days ascending
-  const sorted = [...variants]
-    .filter(v => v.supply_days > 0)
-    .sort((a, b) => a.supply_days - b.supply_days)
-
-  if (sorted.length === 0) {
-    // No supply_days data at all — just use first variant, qty=1
-    return { product: variants[0], quantity: 1 }
+async function getEnrichedProducts(): Promise<EnrichedProduct[]> {
+  // 1. Fetch live Shopify catalog
+  let shopifyProducts: ShopifyProduct[] = []
+  if (isShopifyConfigured()) {
+    shopifyProducts = await getAllShopifyProducts()
   }
 
-  // 1. Exact match
-  const exact = sorted.find(v => v.supply_days === targetDays)
-  if (exact) return { product: exact, quantity: 1 }
-
-  // 2. Find the largest pack that divides evenly into targetDays
-  for (let i = sorted.length - 1; i >= 0; i--) {
-    const packDays = sorted[i].supply_days
-    if (packDays <= targetDays && targetDays % packDays === 0) {
-      return { product: sorted[i], quantity: targetDays / packDays }
-    }
+  if (shopifyProducts.length === 0) {
+    console.warn('[sales-agent] No Shopify products found, cannot build plans')
+    return []
   }
 
-  // 3. Find the largest pack ≤ targetDays and use ceil
-  const smallerPacks = sorted.filter(v => v.supply_days <= targetDays)
-  if (smallerPacks.length > 0) {
-    const bestPack = smallerPacks[smallerPacks.length - 1] // largest ≤ target
-    const qty = Math.ceil(targetDays / bestPack.supply_days)
-    return { product: bestPack, quantity: qty }
+  // 2. Fetch DB metadata for enrichment
+  interface DBRow {
+    product_id: string
+    product_name: string
+    supply_days: number
+    health_issues: string | null
+    dosage_instructions: string | null
+    results_timeline: string | null
+    funnel_role: string
+    image_url: string | null
+    shopify_url: string | null
+    shopify_variant_id: string | null
   }
 
-  // 4. All packs are larger than target — use the smallest pack, qty=1
-  return { product: sorted[0], quantity: 1 }
-}
-
-// ─── Shopify variant resolution ───────────────────────────────────────────────
-function findShopifyMatch(
-  dbProduct: DBProduct,
-  shopifyCatalog: ShopifyProductInfo[]
-): { variantId: string | null; imageUrl: string | null; shopifyUrl: string | null } {
-  // First priority: use DB-stored shopify_variant_id
-  if (dbProduct.shopify_variant_id) {
-    return {
-      variantId: dbProduct.shopify_variant_id,
-      imageUrl: dbProduct.image_url,
-      shopifyUrl: dbProduct.shopify_url,
-    }
+  let dbProducts: DBRow[] = []
+  try {
+    dbProducts = await prisma.$queryRawUnsafe<DBRow[]>(
+      `SELECT product_id, product_name, supply_days, health_issues,
+              dosage_instructions, results_timeline, funnel_role,
+              image_url, shopify_url, shopify_variant_id
+       FROM products`
+    )
+  } catch (e) {
+    console.warn('[sales-agent] DB products query failed, using Shopify-only data:', e)
   }
 
-  // Second: match against Shopify catalog by product title → variant
-  const dbTitle = dbProduct.product_name.toLowerCase()
-  const dbBase = getProductBaseName(dbProduct.product_name)
-  const dbDays = dbProduct.supply_days
+  // 3. Build a lookup map: base_name → DB rows
+  const dbByBase = new Map<string, DBRow[]>()
+  for (const row of dbProducts) {
+    const base = getProductBaseName(row.product_name)
+    if (!dbByBase.has(base)) dbByBase.set(base, [])
+    dbByBase.get(base)!.push(row)
+  }
 
-  for (const sp of shopifyCatalog) {
-    const spBase = getProductBaseName(sp.title)
-    // Check base name similarity
-    if (spBase !== dbBase && !sp.title.toLowerCase().includes(dbBase) && !dbTitle.includes(spBase)) {
-      continue
-    }
+  // Also create a handle → DB row map for direct matching
+  const dbByHandle = new Map<string, DBRow>()
+  for (const row of dbProducts) {
+    dbByHandle.set(row.product_id, row)
+  }
 
-    // If this Shopify product has variants, find the one matching supply_days
-    if (sp.variants.length > 1) {
-      for (const v of sp.variants) {
-        const vDays = extractDays(v.title)
-        if (vDays === dbDays) {
-          return { variantId: v.id, imageUrl: sp.imageUrl, shopifyUrl: sp.url }
-        }
+  // 4. Enrich each Shopify product
+  const enriched: EnrichedProduct[] = []
+
+  for (const sp of shopifyProducts) {
+    // Parse variant prices
+    const variants = sp.variants.map(v => ({
+      id: v.id,
+      title: v.title,
+      price: parseFloat(v.price) || 0,
+      currencyCode: v.currencyCode || 'INR',
+      available: v.available !== false,
+    }))
+
+    // Skip products with no available variants or zero price
+    const availableVariants = variants.filter(v => v.available && v.price > 0)
+    if (availableVariants.length === 0 && variants.every(v => v.price === 0)) continue
+
+    const cheapest = availableVariants.length > 0
+      ? Math.min(...availableVariants.map(v => v.price))
+      : (variants[0]?.price || 0)
+
+    // Find DB enrichment via handle match or base-name match
+    const dbRow = dbByHandle.get(sp.handle)
+    let dbMatch: DBRow | undefined = dbRow
+    if (!dbMatch) {
+      const spBase = getProductBaseName(sp.title)
+      const candidates = dbByBase.get(spBase)
+      if (candidates && candidates.length > 0) {
+        dbMatch = candidates[0]
       }
     }
 
-    // Fallback: check if Shopify product title contains the days
-    const spDays = extractDays(sp.title)
-    if (spDays === dbDays || (spDays === null && sp.variants.length === 1)) {
-      const firstAvailable = sp.variants.find(v => v.available !== false) || sp.variants[0]
-      return {
-        variantId: firstAvailable?.id || null,
-        imageUrl: sp.imageUrl,
-        shopifyUrl: sp.url,
-      }
-    }
-  }
-
-  // Last resort: return DB values
-  return {
-    variantId: dbProduct.shopify_variant_id,
-    imageUrl: dbProduct.image_url,
-    shopifyUrl: dbProduct.shopify_url,
-  }
-}
-
-// ─── Bundle building ──────────────────────────────────────────────────────────
-
-/**
- * Build plan bundles for the user.
- *
- * Plan tiers are the standard durations available in the DB: [15, 30, 60, 90] days.
- * We only create tiers for which at least the primary product can be fulfilled.
- *
- * For each tier duration:
- *   - If an exact pack exists (e.g. 60-day pack), use it with qty=1
- *   - If not, combine smaller packs (e.g. 2×30-day = 60 days)
- *   - Supporting product follows the same logic independently
- */
-function buildDurationBundles(
-  primaryKey: string,
-  supportingKey: string | null,
-  products: DBProduct[],
-  shopifyCatalog: ShopifyProductInfo[],
-  expectedResults: { trial: string; recommended: string; complete: string }
-): Bundle[] {
-  // Find the primary product to determine its base name
-  const primaryProduct = products.find(p => p.product_id === primaryKey)
-  if (!primaryProduct) return []
-
-  const primaryBase = getProductBaseName(primaryProduct.product_name)
-
-  // Collect ALL variants (by base name) for primary
-  const primaryVariants = products.filter(p => {
-    const base = getProductBaseName(p.product_name)
-    return base === primaryBase && p.supply_days > 0
-  })
-
-  // If no variants with supply_days, use the primary product itself
-  if (primaryVariants.length === 0) {
-    primaryVariants.push(primaryProduct)
-  }
-
-  // Collect supporting product variants
-  let supportingVariants: DBProduct[] = []
-  if (supportingKey) {
-    const supportingProduct = products.find(p => p.product_id === supportingKey)
-    if (supportingProduct) {
-      const supportingBase = getProductBaseName(supportingProduct.product_name)
-      supportingVariants = products.filter(p => {
-        const base = getProductBaseName(p.product_name)
-        return base === supportingBase && p.supply_days > 0
-      })
-      if (supportingVariants.length === 0) {
-        supportingVariants.push(supportingProduct)
-      }
-    }
-  }
-
-  // Discover ALL available pack durations across all DB products
-  const allPackDurations = new Set<number>()
-  for (const p of products) {
-    if (p.supply_days > 0) allPackDurations.add(p.supply_days)
-  }
-  // Standard target durations — we'll try to build tiers for each of these
-  const STANDARD_TIERS = [15, 30, 60, 90]
-
-  // Merge: use all pack durations from DB + standard tiers
-  const candidateDurations = new Set<number>([...allPackDurations, ...STANDARD_TIERS])
-  const sortedDurations = [...candidateDurations].sort((a, b) => a - b)
-
-  // For each candidate duration, check if we can actually build a plan
-  // (primary product must be fulfillable)
-  const viableTiers: Array<{
-    duration: number
-    primary: { product: DBProduct; quantity: number }
-    supporting: { product: DBProduct; quantity: number } | null
-  }> = []
-
-  for (const targetDays of sortedDurations) {
-    const primaryPack = selectPackForDuration(primaryVariants, targetDays)
-    if (!primaryPack) continue
-
-    let supportingPack: { product: DBProduct; quantity: number } | null = null
-    if (supportingVariants.length > 0) {
-      supportingPack = selectPackForDuration(supportingVariants, targetDays)
-    }
-
-    viableTiers.push({ duration: targetDays, primary: primaryPack, supporting: supportingPack })
-  }
-
-  if (viableTiers.length === 0) return []
-
-  // Assign tier names
-  // Priority labels by duration range
-  function getTierInfo(duration: number, idx: number, total: number): { name: string; tagline: string; recommended: boolean } {
-    if (total === 1) {
-      return { name: 'Recommended Plan', tagline: 'Curated for your needs', recommended: true }
-    }
-    if (duration <= 15) {
-      return { name: 'Trial', tagline: 'Try it out', recommended: false }
-    }
-    if (duration <= 30) {
-      return total <= 3 && idx === total - 1
-        ? { name: 'Recommended', tagline: 'Most popular choice', recommended: true }
-        : { name: 'Starter', tagline: 'Get started', recommended: false }
-    }
-    if (duration <= 60) {
-      return { name: 'Recommended', tagline: 'Most popular choice', recommended: true }
-    }
-    return { name: 'Complete', tagline: 'Best value plan', recommended: false }
-  }
-
-  // Ensure exactly one tier is "recommended" — if none matched the heuristic,
-  // pick the middle tier; if multiple matched, keep only the one closest to 30-60d
-  const resultsByDuration: Record<string, string> = {}
-  for (const tier of viableTiers) {
-    if (tier.duration <= 15) resultsByDuration[tier.duration.toString()] = expectedResults.trial
-    else if (tier.duration <= 30) resultsByDuration[tier.duration.toString()] = expectedResults.trial
-    else if (tier.duration <= 60) resultsByDuration[tier.duration.toString()] = expectedResults.recommended
-    else resultsByDuration[tier.duration.toString()] = expectedResults.complete
-  }
-
-  // Price of smallest primary pack for savings computation
-  const smallestPrimaryPrice = Math.min(
-    ...primaryVariants.map(p => parseFloat(p.price_inr_min) || 0).filter(p => p > 0)
-  ) || 0
-  const smallestPrimaryDays = Math.min(
-    ...primaryVariants.map(p => p.supply_days).filter(d => d > 0)
-  ) || 30
-  const pricePerDayBase = smallestPrimaryDays > 0 ? smallestPrimaryPrice / smallestPrimaryDays : 0
-
-  // Build the Bundle objects
-  const bundles: Bundle[] = viableTiers.map((tier, idx) => {
-    const tierInfo = getTierInfo(tier.duration, idx, viableTiers.length)
-
-    const bundleProducts: BundleProduct[] = []
-
-    // Primary
-    const pShopify = findShopifyMatch(tier.primary.product, shopifyCatalog)
-    const pPrice = parseFloat(tier.primary.product.price_inr_min) || 0
-    bundleProducts.push({
-      productId: tier.primary.product.product_id,
-      productName: tier.primary.product.product_name,
-      role: 'primary',
-      imageUrl: pShopify.imageUrl || tier.primary.product.image_url,
-      shopifyUrl: pShopify.shopifyUrl || tier.primary.product.shopify_url,
-      shopifyVariantId: pShopify.variantId,
-      price: pPrice,
-      quantity: tier.primary.quantity,
-      supplyDays: tier.primary.product.supply_days,
-      totalDays: tier.primary.product.supply_days * tier.primary.quantity,
-      dosageInstructions: tier.primary.product.dosage_instructions,
-      resultsTimeline: tier.primary.product.results_timeline,
+    enriched.push({
+      shopifyId: sp.id,
+      handle: sp.handle,
+      title: sp.title,
+      description: sp.description,
+      productType: sp.productType,
+      tags: sp.tags,
+      imageUrl: sp.imageUrl,
+      shopifyUrl: sp.url,
+      variants,
+      price: cheapest,
+      supplyDays: dbMatch?.supply_days || 0,
+      healthIssues: dbMatch?.health_issues || (sp.tags.length > 0 ? sp.tags.join(', ') : null),
+      dosageInstructions: dbMatch?.dosage_instructions || null,
+      resultsTimeline: dbMatch?.results_timeline || null,
+      funnelRole: dbMatch?.funnel_role || sp.productType || 'general',
     })
-
-    // Supporting
-    if (tier.supporting) {
-      const sShopify = findShopifyMatch(tier.supporting.product, shopifyCatalog)
-      const sPrice = parseFloat(tier.supporting.product.price_inr_min) || 0
-      bundleProducts.push({
-        productId: tier.supporting.product.product_id,
-        productName: tier.supporting.product.product_name,
-        role: 'supporting',
-        imageUrl: sShopify.imageUrl || tier.supporting.product.image_url,
-        shopifyUrl: sShopify.shopifyUrl || tier.supporting.product.shopify_url,
-        shopifyVariantId: sShopify.variantId,
-        price: sPrice,
-        quantity: tier.supporting.quantity,
-        supplyDays: tier.supporting.product.supply_days,
-        totalDays: tier.supporting.product.supply_days * tier.supporting.quantity,
-        dosageInstructions: tier.supporting.product.dosage_instructions,
-        resultsTimeline: tier.supporting.product.results_timeline,
-      })
-    }
-
-    // Total = sum of (price × quantity) for each product line
-    const totalPrice = bundleProducts.reduce((sum, bp) => sum + bp.price * bp.quantity, 0)
-    const perDay = tier.duration > 0 ? Math.round(totalPrice / tier.duration) : 0
-
-    // Savings vs buying the smallest pack proportionally for this duration
-    const proportionalBase = Math.round(pricePerDayBase * tier.duration * bundleProducts.length)
-    const savedAmt = proportionalBase > totalPrice ? Math.round(proportionalBase - totalPrice) : 0
-    const savingsLabel = savedAmt > 0 ? `Save ₹${savedAmt}` : null
-
-    const durationLabel = tier.duration >= 30 && tier.duration % 30 === 0
-      ? `${tier.duration / 30} Month${tier.duration / 30 > 1 ? 's' : ''}`
-      : `${tier.duration} Days`
-
-    return {
-      name: tierInfo.name,
-      tagline: tierInfo.tagline,
-      duration: tier.duration,
-      durationLabel,
-      products: bundleProducts,
-      totalPrice: Math.round(totalPrice),
-      perDayPrice: perDay,
-      savingsLabel,
-      expectedResults: resultsByDuration[tier.duration.toString()] || expectedResults.recommended,
-      recommended: tierInfo.recommended,
-    }
-  })
-
-  // Post-process: ensure exactly one bundle is "recommended"
-  const recBundles = bundles.filter(b => b.recommended)
-  if (recBundles.length === 0 && bundles.length > 0) {
-    // Pick the middle bundle
-    const midIdx = Math.floor(bundles.length / 2)
-    bundles[midIdx].recommended = true
-  } else if (recBundles.length > 1) {
-    // Keep only the one closest to 30 days
-    let closest = recBundles[0]
-    for (const rb of recBundles) {
-      if (Math.abs(rb.duration - 30) < Math.abs(closest.duration - 30)) closest = rb
-    }
-    for (const b of bundles) {
-      b.recommended = (b === closest)
-    }
   }
 
-  return bundles
+  console.log(`[sales-agent] Enriched ${enriched.length} products from Shopify (${dbProducts.length} DB rows for metadata)`)
+  return enriched
+}
+
+/**
+ * Build the product catalog string for the AI prompt.
+ * Includes ALL real products with their actual Shopify prices and variant details.
+ */
+function buildCatalogPrompt(products: EnrichedProduct[]): string {
+  return products.map((p, idx) => {
+    const variantDetails = p.variants
+      .filter(v => v.available && v.price > 0)
+      .map((v, vi) => `    variant[${vi}]: "${v.title}" @ ₹${v.price}${v.available ? '' : ' (out of stock)'}`)
+      .join('\n')
+
+    return [
+      `[${idx}] ${p.title} (handle: "${p.handle}")`,
+      `  Price: ₹${p.price} | Type: ${p.productType || 'General'} | Tags: ${p.tags.join(', ') || 'none'}`,
+      `  Health issues: ${p.healthIssues || 'general wellness'}`,
+      `  Supply days: ${p.supplyDays || 'not specified'}`,
+      `  Dosage: ${p.dosageInstructions || 'As per label'}`,
+      `  Results: ${p.resultsTimeline || 'Varies'}`,
+      `  Variants:\n${variantDetails || '    (single variant)'}`,
+    ].join('\n')
+  }).join('\n\n')
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
@@ -468,42 +284,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing agentId' }, { status: 400, headers: cors })
     }
 
-    // ── Load products from DB ──────────────────────────────────────────────
-    const products = await prisma.$queryRawUnsafe<DBProduct[]>(
-      `SELECT product_id, product_name, price_inr_min, price_inr_max,
-              supply_days, funnel_role, discount_eligible, discount_pct,
-              health_issues, dosage_instructions, results_timeline,
-              image_url, shopify_url, shopify_variant_id
-       FROM products ORDER BY product_id`
-    )
+    // ── Fetch enriched product catalog ──────────────────────────────────────
+    const enrichedProducts = await getEnrichedProducts()
 
-    // ── Load Shopify catalog for variant resolution ───────────────────────
-    let shopifyCatalog: ShopifyProductInfo[] = []
-    if (isShopifyConfigured()) {
-      try {
-        const shopifyProducts = await getAllShopifyProducts()
-        shopifyCatalog = shopifyProducts.map(sp => ({
-          id: sp.id,
-          title: sp.title,
-          handle: sp.handle,
-          imageUrl: sp.imageUrl,
-          url: sp.url,
-          variants: sp.variants.map(v => ({
-            id: v.id,
-            title: v.title,
-            price: v.price,
-            available: v.available,
-          })),
-        }))
-      } catch (e) {
-        console.warn('[sales-agent] Shopify catalog fetch failed, using DB data:', e)
-      }
+    if (enrichedProducts.length === 0) {
+      return NextResponse.json({
+        error: 'No products available',
+        details: 'Could not fetch products from Shopify. Please ensure Shopify integration is configured.',
+      }, { status: 503, headers: cors })
     }
 
-    // ── "Ask" mode: answer dosage/safety/results questions ─────────────────
+    // ── "Ask" mode: answer dosage/safety/results questions ──────────────────
     if (mode === 'ask' && question) {
-      const catalog = products.map(p =>
-        `• ${p.product_name} — ₹${p.price_inr_min}, ${p.supply_days}d supply. Dosage: ${p.dosage_instructions || 'Follow label'}. Results: ${p.results_timeline || '2-4 weeks'}.`
+      const catalog = enrichedProducts.map(p =>
+        `• ${p.title} — ₹${p.price}. Dosage: ${p.dosageInstructions || 'Follow label'}. Results: ${p.resultsTimeline || '2-4 weeks'}.`
       ).join('\n')
 
       const askPrompt = [
@@ -541,49 +335,54 @@ export async function POST(req: NextRequest) {
       }, { headers: cors })
     }
 
-    // ── "Recommend" mode: build bundles ────────────────────────────────────
+    // ── "Recommend" mode: build combo plans from real products ──────────────
     if (!concern) {
       return NextResponse.json({ error: 'Missing concern' }, { status: 400, headers: cors })
     }
 
-    // Collect available pack info for AI awareness
-    const durationGroups = new Map<string, number[]>()
-    for (const p of products) {
-      const base = getProductBaseName(p.product_name)
-      if (!durationGroups.has(base)) durationGroups.set(base, [])
-      if (p.supply_days > 0 && !durationGroups.get(base)!.includes(p.supply_days)) {
-        durationGroups.get(base)!.push(p.supply_days)
-      }
-    }
-
-    const catalog = products.map(p => {
-      const base = getProductBaseName(p.product_name)
-      const durations = durationGroups.get(base) || []
-      return `• ${p.product_name} (id: ${p.product_id}) — ₹${p.price_inr_min}–₹${p.price_inr_max}, ${p.supply_days}d supply, role: ${p.funnel_role}. Tags: ${p.health_issues || 'general'}. Pack durations: ${durations.join(', ')}d. Dosage: ${p.dosage_instructions || 'N/A'}. Results: ${p.results_timeline || 'N/A'}.`
-    }).join('\n')
+    const catalogPrompt = buildCatalogPrompt(enrichedProducts)
 
     const systemMsg =
-      `You are a wellness sales specialist for StayOn Wellness (Ayurvedic supplements for men).\n\n` +
+      `You are a wellness sales specialist for StayOn Wellness (Ayurvedic/natural supplements).\n\n` +
       `The user's main concern is: "${concern}"\n\n` +
-      `PRODUCT CATALOG:\n${catalog}\n\n` +
       `CONVERSATION CONTEXT:\n${conversationHistory.slice(-8).map((m: any) => `${m.role}: ${m.content}`).join('\n')}\n\n` +
+      `REAL PRODUCT CATALOG (from Shopify — use ONLY these products):\n${catalogPrompt}\n\n` +
       `YOUR TASK:\n` +
-      `1. Choose ONE primary product that best addresses the user's concern.\n` +
-      `2. Optionally choose ONE supporting product (or null if not needed).\n` +
-      `3. Write expected results text for 3 phases: trial (2 weeks), recommended (1-2 months), complete (3 months).\n` +
-      `4. Write a warm, personalized 2-3 sentence response explaining why these products are right for them.\n` +
-      `5. Provide 2-3 suggestion chips the user might want to ask next.\n\n` +
+      `Create 2-4 personalized combo plans using ONLY products from the catalog above.\n` +
+      `Each plan should be a meaningful combination of products that work together for the user's condition.\n\n` +
+      `RULES:\n` +
+      `1. Use ONLY products listed above — reference them by their exact "handle" value.\n` +
+      `2. Each plan should have 2-4 products that complement each other.\n` +
+      `3. Mark 1 product per plan as "primary" (main treatment) and others as "supporting".\n` +
+      `4. Use the correct variant index (0-based) for each product. Choose the variant that makes sense for the plan duration.\n` +
+      `5. Set quantity appropriately (usually 1, but 2+ if the plan is for a longer duration).\n` +
+      `6. Plans should increase in duration/value: e.g. "Starter" (short), "Recommended" (medium), "Complete" (long).\n` +
+      `7. Mark exactly ONE plan as recommended (the best value for the user's condition).\n` +
+      `8. Calculate realistic plan durations in days based on the products.\n` +
+      `9. Write a warm, personalized 2-3 sentence response explaining why these products suit the user.\n\n` +
       `Respond in ${language === 'hi' ? 'Hindi (Devanagari)' : 'English'}.\n\n` +
       `Return EXACTLY this JSON structure:\n` +
       `{\n` +
-      `  "primaryProductId": "exact_product_id",\n` +
-      `  "supportingProductId": "exact_product_id_or_null",\n` +
-      `  "response": "Your warm conversational message",\n` +
-      `  "expectedResults": {\n` +
-      `    "trial": "What to expect in the first 2 weeks",\n` +
-      `    "recommended": "What to expect in 1-2 months",\n` +
-      `    "complete": "What to expect in 3 months"\n` +
-      `  },\n` +
+      `  "response": "Your warm personalized message to the user",\n` +
+      `  "plans": [\n` +
+      `    {\n` +
+      `      "name": "Plan name (e.g. Starter, Recommended, Complete)",\n` +
+      `      "tagline": "Short tagline for the plan",\n` +
+      `      "durationLabel": "e.g. 1 Month, 2 Months",\n` +
+      `      "durationDays": 30,\n` +
+      `      "products": [\n` +
+      `        {\n` +
+      `          "handle": "exact-product-handle",\n` +
+      `          "variantIndex": 0,\n` +
+      `          "quantity": 1,\n` +
+      `          "role": "primary",\n` +
+      `          "reason": "Why this product helps"\n` +
+      `        }\n` +
+      `      ],\n` +
+      `      "expectedResults": "What results to expect with this plan",\n` +
+      `      "recommended": false\n` +
+      `    }\n` +
+      `  ],\n` +
       `  "chips": ["Suggestion 1", "Suggestion 2"]\n` +
       `}`
 
@@ -591,7 +390,7 @@ export async function POST(req: NextRequest) {
       model: 'gpt-4o-mini',
       messages: [{ role: 'system', content: systemMsg }],
       temperature: 0.7,
-      max_tokens: 600,
+      max_tokens: 1500,
       response_format: { type: 'json_object' },
     })
 
@@ -600,24 +399,114 @@ export async function POST(req: NextRequest) {
       parsed = JSON.parse(completion.choices[0]?.message?.content?.trim() || '{}')
     } catch { /* fallback */ }
 
-    // Find products by ID
-    const primaryProduct = products.find(p => p.product_id === parsed.primaryProductId) || products[0]
-    const supportingProductId = parsed.supportingProductId || null
+    const gptPlans: GPTPlan[] = Array.isArray(parsed.plans) ? parsed.plans : []
 
-    const expectedResults = parsed.expectedResults || {
-      trial: 'Initial improvements in energy and vitality.',
-      recommended: 'Noticeable gains in stamina, energy, and overall wellness.',
-      complete: 'Comprehensive transformation with sustained results.',
+    // ── Build validated bundles from GPT response ──────────────────────────
+    // Create a handle → enriched product lookup
+    const productByHandle = new Map<string, EnrichedProduct>()
+    for (const p of enrichedProducts) {
+      productByHandle.set(p.handle, p)
     }
 
-    // Build bundles with intelligent pack combination
-    const bundles = buildDurationBundles(
-      primaryProduct.product_id,
-      supportingProductId,
-      products,
-      shopifyCatalog,
-      expectedResults
-    )
+    const bundles: Bundle[] = []
+
+    for (const plan of gptPlans) {
+      const bundleProducts: BundleProduct[] = []
+      let totalPrice = 0
+      let hasValidProduct = false
+
+      for (const gptProd of plan.products) {
+        const product = productByHandle.get(gptProd.handle)
+        if (!product) {
+          console.warn(`[sales-agent] GPT referenced unknown product handle: "${gptProd.handle}", skipping`)
+          continue
+        }
+
+        // Select the variant
+        const variantIdx = Math.min(
+          Math.max(0, gptProd.variantIndex || 0),
+          product.variants.length - 1
+        )
+        const variant = product.variants[variantIdx] || product.variants[0]
+        if (!variant) continue
+
+        const qty = Math.max(1, gptProd.quantity || 1)
+        const unitPrice = variant.price
+        const lineTotal = unitPrice * qty
+        totalPrice += lineTotal
+        hasValidProduct = true
+
+        // Extract numeric variant ID from Shopify GID
+        const rawId = variant.id
+        const numericId = rawId.includes('/') ? rawId.split('/').pop() || rawId : rawId
+
+        bundleProducts.push({
+          productId: product.handle,
+          productName: product.title,
+          role: gptProd.role === 'supporting' ? 'supporting' : 'primary',
+          imageUrl: product.imageUrl,
+          shopifyUrl: product.shopifyUrl,
+          shopifyVariantId: numericId,
+          price: unitPrice,
+          quantity: qty,
+          supplyDays: product.supplyDays || plan.durationDays || 30,
+          totalDays: (product.supplyDays || plan.durationDays || 30) * qty,
+          dosageInstructions: product.dosageInstructions,
+          resultsTimeline: product.resultsTimeline,
+        })
+      }
+
+      if (!hasValidProduct || bundleProducts.length === 0) continue
+
+      totalPrice = Math.round(totalPrice)
+      const duration = plan.durationDays || 30
+      const perDay = duration > 0 ? Math.round(totalPrice / duration) : 0
+
+      // Calculate savings: compare against buying individual products at full price
+      // Use the first (cheapest) plan as baseline for comparison
+      let savingsLabel: string | null = null
+      if (bundles.length > 0 && bundles[0].perDayPrice > 0 && perDay < bundles[0].perDayPrice) {
+        const savingsPct = Math.round(((bundles[0].perDayPrice - perDay) / bundles[0].perDayPrice) * 100)
+        if (savingsPct > 0) savingsLabel = `Save ${savingsPct}% per day`
+      }
+
+      bundles.push({
+        name: plan.name || `Plan ${bundles.length + 1}`,
+        tagline: plan.tagline || 'Curated for your needs',
+        duration,
+        durationLabel: plan.durationLabel || `${duration} Days`,
+        products: bundleProducts,
+        totalPrice,
+        perDayPrice: perDay,
+        savingsLabel,
+        expectedResults: plan.expectedResults || 'Gradual improvement in your wellness.',
+        recommended: plan.recommended || false,
+      })
+    }
+
+    // ── Fallback: if GPT didn't return valid plans, build a simple one ──────
+    if (bundles.length === 0) {
+      console.warn('[sales-agent] GPT returned no valid plans, building fallback from top products')
+      const fallbackBundle = buildFallbackBundle(enrichedProducts, concern)
+      if (fallbackBundle) bundles.push(fallbackBundle)
+    }
+
+    // ── Ensure exactly one bundle is "recommended" ─────────────────────────
+    const recBundles = bundles.filter(b => b.recommended)
+    if (recBundles.length === 0 && bundles.length > 0) {
+      // Pick the middle bundle
+      const midIdx = Math.floor(bundles.length / 2)
+      bundles[midIdx].recommended = true
+    } else if (recBundles.length > 1) {
+      // Keep only the first one recommended
+      let found = false
+      for (const b of bundles) {
+        if (b.recommended) {
+          if (found) b.recommended = false
+          else found = true
+        }
+      }
+    }
 
     // Order metadata
     const orderMeta = {
@@ -631,7 +520,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       bundles,
       response: parsed.response || 'Based on your consultation, I have prepared personalized wellness plans for you.',
-      chips: Array.isArray(parsed.chips) ? parsed.chips : ['How should I take this?', 'Any side effects?', 'How soon will I see results?'],
+      chips: Array.isArray(parsed.chips)
+        ? parsed.chips
+        : ['How should I take this?', 'Any side effects?', 'How soon will I see results?'],
       orderMeta,
     }, { headers: cors })
 
@@ -641,5 +532,83 @@ export async function POST(req: NextRequest) {
       { error: 'Sales agent failed', details: error instanceof Error ? error.message : 'Unknown' },
       { status: 500, headers: cors }
     )
+  }
+}
+
+// ─── Fallback bundle builder ──────────────────────────────────────────────────
+/**
+ * If GPT fails to return valid plans, build a simple fallback bundle
+ * from the top available products that match the user's concern.
+ */
+function buildFallbackBundle(
+  products: EnrichedProduct[],
+  concern: string
+): Bundle | null {
+  if (products.length === 0) return null
+
+  const concernLower = concern.toLowerCase()
+
+  // Score products by relevance to the concern
+  const scored = products.map(p => {
+    let score = 0
+    const searchText = `${p.title} ${p.description} ${p.healthIssues || ''} ${p.tags.join(' ')}`.toLowerCase()
+
+    // Check for keyword overlap with the concern
+    const keywords = concernLower.split(/\s+/).filter(w => w.length > 2)
+    for (const kw of keywords) {
+      if (searchText.includes(kw)) score += 2
+    }
+
+    // Bonus for products with available variants
+    if (p.variants.some(v => v.available && v.price > 0)) score += 1
+
+    return { product: p, score }
+  })
+
+  // Sort by relevance score
+  scored.sort((a, b) => b.score - a.score)
+
+  // Take top 2-3 products
+  const selected = scored.slice(0, Math.min(3, scored.length))
+  if (selected.length === 0) return null
+
+  const bundleProducts: BundleProduct[] = selected.map((item, idx) => {
+    const variant = item.product.variants.find(v => v.available && v.price > 0) || item.product.variants[0]
+    if (!variant) return null
+
+    const rawId = variant.id
+    const numericId = rawId.includes('/') ? rawId.split('/').pop() || rawId : rawId
+
+    return {
+      productId: item.product.handle,
+      productName: item.product.title,
+      role: idx === 0 ? 'primary' as const : 'supporting' as const,
+      imageUrl: item.product.imageUrl,
+      shopifyUrl: item.product.shopifyUrl,
+      shopifyVariantId: numericId,
+      price: variant.price,
+      quantity: 1,
+      supplyDays: item.product.supplyDays || 30,
+      totalDays: item.product.supplyDays || 30,
+      dosageInstructions: item.product.dosageInstructions,
+      resultsTimeline: item.product.resultsTimeline,
+    }
+  }).filter(Boolean) as BundleProduct[]
+
+  if (bundleProducts.length === 0) return null
+
+  const totalPrice = Math.round(bundleProducts.reduce((s, p) => s + p.price * p.quantity, 0))
+
+  return {
+    name: 'Recommended',
+    tagline: 'Curated for your needs',
+    duration: 30,
+    durationLabel: '1 Month',
+    products: bundleProducts,
+    totalPrice,
+    perDayPrice: Math.round(totalPrice / 30),
+    savingsLabel: null,
+    expectedResults: 'Gradual improvement in energy, wellness, and overall vitality within the first month.',
+    recommended: true,
   }
 }

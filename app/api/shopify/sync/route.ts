@@ -39,6 +39,26 @@ export async function OPTIONS(req: NextRequest) {
 }
 
 /**
+ * Extract supply days from a product title or variant title.
+ * E.g. "30-day pack" → 30, "1 Month Supply" → 30, "60 capsules" → 0 (unknown)
+ */
+function extractSupplyDays(text: string): number {
+  // Match "X day(s)"
+  const dayMatch = text.match(/\b(\d+)\s*[-–]?\s*(day|days)\b/i)
+  if (dayMatch) return parseInt(dayMatch[1], 10)
+
+  // Match "X month(s)"
+  const monthMatch = text.match(/\b(\d+)\s*[-–]?\s*(month|months)\b/i)
+  if (monthMatch) return parseInt(monthMatch[1], 10) * 30
+
+  // Match "X week(s)"
+  const weekMatch = text.match(/\b(\d+)\s*[-–]?\s*(week|weeks)\b/i)
+  if (weekMatch) return parseInt(weekMatch[1], 10) * 7
+
+  return 0
+}
+
+/**
  * Map a Shopify product into the shape of the existing `products` table.
  *
  * Full column list (from consultation-flow.service.ts Product interface):
@@ -47,7 +67,8 @@ export async function OPTIONS(req: NextRequest) {
  *   daily_dose_caps, supply_days, funnel_role,
  *   discount_eligible, discount_pct,
  *   target_age_group, health_issues, dosage_instructions,
- *   results_timeline, compatibility, recommended_plan
+ *   results_timeline, compatibility, recommended_plan,
+ *   image_url, shopify_url, shopify_variant_id
  */
 function mapToLocalProduct(sp: ShopifyProduct) {
   const prices = sp.variants
@@ -74,6 +95,16 @@ function mapToLocalProduct(sp: ShopifyProduct) {
   const firstVariant = sp.variants.find((v) => v.available !== false) || sp.variants[0]
   const shopifyVariantId = firstVariant?.id || null
 
+  // Extract supply_days from product title or variant titles
+  let supplyDays = extractSupplyDays(sp.title)
+  if (supplyDays === 0) {
+    // Try extracting from variant titles
+    for (const vTitle of variantTitles) {
+      const days = extractSupplyDays(vTitle)
+      if (days > 0) { supplyDays = days; break }
+    }
+  }
+
   return {
     product_id: sp.handle,
     product_name: sp.title,
@@ -86,7 +117,7 @@ function mapToLocalProduct(sp: ShopifyProduct) {
     price_display: priceDisplay,
     market: currency === 'INR' ? 'IN' : currency,
     daily_dose_caps: 0,
-    supply_days: 0,
+    supply_days: supplyDays,
     funnel_role: sp.productType || 'general',
     discount_eligible: false,
     discount_pct: null as string | null,
@@ -96,6 +127,8 @@ function mapToLocalProduct(sp: ShopifyProduct) {
     results_timeline: null as string | null,
     compatibility: null as string | null,
     recommended_plan: null as string | null,
+    image_url: sp.imageUrl || null,
+    shopify_url: sp.url || null,
     shopify_variant_id: shopifyVariantId,
   }
 }
@@ -149,7 +182,7 @@ export async function POST(req: NextRequest) {
             discount_eligible, discount_pct,
             target_age_group, health_issues, dosage_instructions,
             results_timeline, compatibility, recommended_plan,
-            shopify_variant_id
+            image_url, shopify_url, shopify_variant_id
           ) VALUES (
             $1, $2, $3, $4,
             $5, $6,
@@ -158,7 +191,7 @@ export async function POST(req: NextRequest) {
             $14, $15,
             $16, $17, $18,
             $19, $20, $21,
-            $22
+            $22, $23, $24
           )`,
           p.product_id,
           p.product_name,
@@ -181,6 +214,8 @@ export async function POST(req: NextRequest) {
           p.results_timeline,
           p.compatibility,
           p.recommended_plan,
+          p.image_url,
+          p.shopify_url,
           p.shopify_variant_id
         )
         synced++

@@ -586,6 +586,121 @@ export default function AgentChat({
     return profile;
   };
 
+  /**
+   * Intelligently extract the actual name from a user's natural-language response.
+   *
+   * Supports English and Hindi (Devanagari + transliterated).
+   *
+   * Examples:
+   *   "My name is Ranjan"          → "Ranjan"
+   *   "I am Ranjan"                → "Ranjan"
+   *   "Call me Ranjan"             → "Ranjan"
+   *   "You can call me Ranjan"     → "Ranjan"
+   *   "mera naam Ranjan hai"       → "Ranjan"
+   *   "मेरा नाम रंजन है"             → "रंजन"
+   *   "मुझे रंजन बुलाओ"             → "रंजन"
+   *   "मैं रंजन हूँ"                  → "रंजन"
+   *   "Ranjan"                     → "Ranjan"
+   *   "रंजन"                        → "रंजन"
+   *
+   * Falls back to the first word of cleaned input if no pattern matches.
+   */
+  const extractName = (raw: string): string => {
+    let text = raw.trim();
+    if (!text) return text;
+
+    // Helper: check if a string contains Devanagari characters
+    const isDevanagari = (s: string) => /[\u0900-\u097F]/.test(s);
+
+    // ---------- 1. Pattern-based extraction (Hindi Devanagari → Transliterated Hindi → English) ----------
+
+    const patterns: RegExp[] = [
+
+      // ── Hindi (Devanagari script) ──
+      /^(?:मेरा|हमारा)\s+(?:नाम|naam)\s+(.+?)(?:\s+है|\s+हे|\s+h)?$/i,       // "मेरा नाम रंजन है"
+      /(?:मेरा|हमारा)\s+(?:नाम|naam)\s+(.+?)(?:\s+है|\s+हे)?/i,              // "मेरा नाम रंजन"
+      /(?:मुझे|मुझको|हमें)\s+(.+?)\s+(?:बुलाओ|बोलो|कहो|बुलाइए|पुकारो)/i,   // "मुझे रंजन बुलाओ"
+      /(?:मुझे|मुझको)\s+(.+?)\s+(?:कह\s*(?:सकते|सकती)\s*(?:हो|हैं|है))/i,   // "मुझे रंजन कह सकते हो"
+      /(?:आप\s+)?(?:मुझे|मुझको)\s+(.+?)\s+(?:बुला|कह|पुकार)\s*(?:सकते|सकती)?/i, // "आप मुझे रंजन बुला सकते हैं"
+      /(?:नाम|naam)\s+(.+?)(?:\s+है|\s+हे)?$/i,                              // "नाम रंजन है"
+      /(?:मैं|मै)\s+(.+?)(?:\s+हूँ|\s+हूं|\s+हु)?$/i,                        // "मैं रंजन हूँ"
+      /^जी\s+(.+)/i,                                                          // "जी रंजन" (polite)
+
+      // ── Transliterated Hindi (Latin script) ──
+      /^(?:mera|meri|hamara)\s+(?:naam|name)\s+(.+?)(?:\s+hai|\s+he|\s+h)?$/i, // "mera naam Ranjan hai"
+      /(?:mujhe|mujhko)\s+(.+?)\s+(?:bulao|bolo|kaho|bulaiye)/i,             // "mujhe Ranjan bulao"
+      /(?:mai|main|mein)\s+(.+?)(?:\s+hoon|\s+hun|\s+hu)?$/i,                // "main Ranjan hoon"
+      /(?:naam|name)\s*(?:hai|he|h)?\s*(.+)/i,                               // "naam Ranjan"
+
+      // ── English ──
+      /(?:you\s+can\s+)?call\s+me\s+(.+)/i,
+      /(?:my|the)\s+name\s+is\s+(.+)/i,
+      /i\s*(?:am|'m)\s+(.+)/i,
+      /(?:it'?s|this\s+is)\s+(.+)/i,
+      /(?:people|everyone|they|friends)\s+call\s+me\s+(.+)/i,
+      /(?:just|please)\s+call\s+me\s+(.+)/i,
+      /(?:i\s+go\s+by)\s+(.+)/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        text = match[1].trim();
+        break;
+      }
+    }
+
+    // ---------- 2. Strip trailing noise words ----------
+
+    // Hindi Devanagari trailing noise
+    text = text.replace(/\s+(?:है|हे|हूँ|हूं|हु|जी|साहब|भाई|भैया|सर|श्रीमान)[\s।.!,]*$/i, '').trim();
+    // English / transliterated Hindi trailing noise
+    text = text.replace(/\s+(?:hai|he|h|ji|sir|please|bro|bhai|sahab)[\s.!,]*$/i, '').trim();
+
+    // ---------- 3. Remove stray punctuation & special characters ----------
+    text = text.replace(/[.!?,;:'"()।]/g, '').trim();
+
+    // ---------- 4. Get the first name only (discard surname) ----------
+    const parts = text.split(/\s+/).filter(Boolean);
+    const firstName = parts[0] || text;
+
+    // ---------- 5. Filter out common filler words that are NOT names ----------
+
+    // Hindi (Devanagari) filler words
+    const hindiFillers = new Set([
+      'मेरा', 'मेरी', 'हमारा', 'नाम', 'है', 'हे', 'हूँ', 'हूं', 'हु',
+      'मैं', 'मै', 'मुझे', 'मुझको', 'हमें', 'आप', 'जी', 'और', 'को',
+      'बुलाओ', 'बोलो', 'कहो', 'बुलाइए', 'पुकारो',
+    ]);
+
+    // English + transliterated Hindi filler words
+    const latinFillers = new Set([
+      'my', 'name', 'is', 'i', 'am', 'the', 'a', 'an', 'it', 'its',
+      'this', 'that', 'to', 'me', 'just', 'please', 'hi', 'hello',
+      'hey', 'well', 'so', 'ok', 'okay', 'yes', 'yeah', 'sure',
+      'mera', 'meri', 'naam', 'hai', 'he', 'hoon', 'hu', 'main', 'mai',
+      'call', 'you', 'can', 'mujhe', 'mujhko', 'bulao', 'bolo', 'kaho',
+    ]);
+
+    const isFillerWord = (word: string): boolean =>
+      latinFillers.has(word.toLowerCase()) || hindiFillers.has(word);
+
+    // If the extracted firstName is a filler, try the remaining parts
+    if (isFillerWord(firstName)) {
+      const remaining = parts.filter(w => !isFillerWord(w));
+      if (remaining.length > 0) {
+        const name = remaining[0];
+        if (isDevanagari(name)) return name;
+        return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+      }
+    }
+
+    // ---------- 6. Capitalize properly (skip for Devanagari) ----------
+    if (!firstName) return text;
+    if (isDevanagari(firstName)) return firstName;
+    return firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+  };
+
   const handleProfileInput = async (stage: ProfileStage, value: string) => {
     const trimmed = value.trim();
     if (!trimmed) {
@@ -594,8 +709,8 @@ export default function AgentChat({
     }
 
     if (stage === "name") {
-      await updateProfile({ name: trimmed });
-      const firstName = trimmed.split(" ")[0];
+      const firstName = extractName(trimmed);
+      await updateProfile({ name: firstName });
 
       // Intro text — short greeting, privacy note, prompt
       const introText: Record<string, string> = {
